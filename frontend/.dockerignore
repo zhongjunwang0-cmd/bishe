@@ -1,0 +1,20 @@
+# Exclude heavy build-time artifacts from Docker context
+node_modules/
+dist/
+.vite/
+.eslintcache
+coverage/
+
+# Test files (no tests in this project)
+**/__tests__/
+**/*.spec.*
+**/*.test.*
+cypress/
+playwright/
+
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log

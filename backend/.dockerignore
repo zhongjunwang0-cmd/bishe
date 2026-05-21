@@ -1,0 +1,22 @@
+# Exclude Maven build output from Docker context
+target/
+*.class
+*.jar
+!app.jar
+
+# Exclude IDE/editor files
+.idea/
+.vscode/
+*.iml
+
+# Exclude test directories (no tests in this project)
+src/test/
+
+# Exclude local config overrides
+*.log
+application-local.yml
+application-local.properties
+
+# Exclude OS artifacts
+.DS_Store
+Thumbs.db

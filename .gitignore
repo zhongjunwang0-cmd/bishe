@@ -1,0 +1,47 @@
+# ───────────── Java / Maven ─────────────
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/
+hs_err_pid*
+
+# ───────────── Node / Frontend ──────────
+node_modules/
+frontend/dist/
+frontend/.vite/
+.eslintcache
+*.local
+
+# ───────────── Python ───────────────────
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.env
+
+# ───────────── IDE / Editor ─────────────
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+
+# ───────────── Docker / OS ──────────────
+.env.local
+*.log
+mysql/data/
+backend/data/uploads/
+
+# ───────────── Test/Cache artifacts ─────
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+cypress/videos/
+cypress/screenshots/

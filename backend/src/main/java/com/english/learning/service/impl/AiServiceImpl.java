@@ -3,7 +3,12 @@ package com.english.learning.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.english.learning.entity.LearningRecord;
 import com.english.learning.service.AiService;
+import com.english.learning.service.ExternalLlmService;
 import com.english.learning.service.LearningRecordService;
+import com.english.learning.service.SystemConfigService;
+import com.english.learning.dto.AiChatResult;
+import com.english.learning.dto.AiIntegrationConfig;
+import com.english.learning.util.EnglishWritingAnalyzer;
 import com.english.learning.util.LearningRecordTypeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,20 +21,23 @@ import java.util.stream.Collectors;
 /**
  * AI 辅导服务实现。
  *
- * <p><b>设计说明</b>：本系统为完全离线部署的自含式英语学习平台，不依赖任何外部 LLM API，
- * 以保证环境无依赖、数据安全合规。AI 辅导能力通过以下两层机制实现：</p>
- * <ol>
- *   <li><b>个性化学习分析</b>：读取当前用户过去 7 天的真实学习记录，动态计算累计时长、
- *   活跃模块分布、全面性等指标，生成定制化学习建议（真实数据驱动，非硬编码）。</li>
- *   <li><b>知识问答引擎</b>：基于领域规则匹配 + 语境扩展的规则引擎，覆盖词汇、语法、
- *   阅读、听力、写作、考试策略等常见学习咨询场景，响应包含具体方法论和行动建议。</li>
- * </ol>
+ * <p>问答流程：管理员在「工具与 API 集成」中启用并配置 Key 后，优先调用 OpenAI 兼容的外部 LLM
+ * （DeepSeek / GPT 等）；若未配置或调用失败，自动降级到内置规则引擎，保证离线可用。</p>
+ * <p>个性化学习建议始终基于用户真实学习记录生成。</p>
  */
 @Service
 public class AiServiceImpl implements AiService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AiServiceImpl.class);
+
     @Autowired
     private LearningRecordService learningRecordService;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
+
+    @Autowired
+    private ExternalLlmService externalLlmService;
 
     // ─── 个性化建议（基于真实学习记录） ─────────────────────────────────────────
     @Override
@@ -86,14 +94,54 @@ public class AiServiceImpl implements AiService {
         return advice.toString();
     }
 
-    // ─── 知识问答引擎（领域规则 + 语境扩展） ─────────────────────────────────────
+    // ─── 知识问答：外部 LLM 优先，规则引擎降级 ───────────────────────────────────
     @Override
-    public String getChatResponse(Long userId, String query) {
+    public AiChatResult getChatResponse(Long userId, String query) {
+        AiIntegrationConfig aiConfig = systemConfigService.getAiIntegrationConfig();
+        if (aiConfig.isConfigured() && query != null && !query.isBlank()) {
+            var externalReply = externalLlmService.chat(aiConfig, query);
+            if (externalReply.isPresent()) {
+                AiChatResult result = new AiChatResult();
+                result.setContent("【AI 智能辅导】 " + externalReply.get());
+                result.setSource("external");
+                return result;
+            }
+            log.debug("External AI unavailable, falling back to rule engine for query");
+        }
+
+        AiChatResult result = new AiChatResult();
+        result.setContent(ruleEngineChatResponse(userId, query));
+        result.setSource("rule_engine");
+        return result;
+    }
+
+    private String ruleEngineChatResponse(Long userId, String query) {
         if (query == null || query.isBlank()) {
             return "【AI 学习顾问】 您好！请问有什么英语学习问题需要我来帮助您解答呢？😊";
         }
 
         String q = query.toLowerCase().strip();
+
+        // ── 写作批改：用户提供英文句子并要求纠错/修改 ─────────────────────────────
+        if (EnglishWritingAnalyzer.isCorrectionIntent(q) && EnglishWritingAnalyzer.containsEnglishText(query)) {
+            return buildWritingCorrectionResponse(query);
+        }
+
+        // ── 语法讲解：具体语法点或附带英文句子的语法问题 ───────────────────────────
+        if (EnglishWritingAnalyzer.isGrammarExplanationIntent(q)) {
+            String grammarExplanation = EnglishWritingAnalyzer.formatGrammarExplanation(q);
+            if (grammarExplanation != null) {
+                return grammarExplanation;
+            }
+            if (EnglishWritingAnalyzer.containsEnglishText(query)) {
+                return buildWritingCorrectionResponse(query);
+            }
+        }
+
+        // ── 仅含英文短句时，默认按写作批改处理 ─────────────────────────────────────
+        if (EnglishWritingAnalyzer.containsEnglishText(query) && isMostlyEnglish(query)) {
+            return buildWritingCorrectionResponse(query);
+        }
 
         // ── 词汇类 ──────────────────────────────────────────────────────────────
         if (contains(q, "单词","词汇","word","vocab","记忆","背单词","忘记")) {
@@ -105,14 +153,14 @@ public class AiServiceImpl implements AiService {
                    "建议每天在「词汇学习」模块学习 10-15 个新词，配合「选词填空」巩固记忆效果。";
         }
 
-        // ── 语法类 ──────────────────────────────────────────────────────────────
+        // ── 语法类（通用学习方法，非具体语法点） ───────────────────────────────────
         if (contains(q, "语法","grammar","句型","从句","时态","虚拟","被动","倒装","冠词")) {
-            return "【AI 学习顾问】 语法是语言运用的框架，以下几点可以帮您系统掌握：\n\n" +
-                   "1\u5e8f\ufe0f\u20e3 **\u65f6\u6001\u4e0e\u8bed\u6001**\uff1a\u82f1\u8bed 16 \u79cd\u65f6\u6001\u770b\u4f3c\u590d\u6742\uff0c\u7406\u89e3 [\u65f6\u95f4\u8f74 x \u52a8\u4f5c\u72b6\u6001] \u7684\u903b\u8f91\u5c31\u80fd\u4e3e\u4e00\u53cd\u4e09\u3002\n" +
-                   "2\u5e8f\ufe0f\u20e3 **\u4ece\u53e5\u7ed3\u6784**\uff1a\u5b9a\u8bed\u4ece\u53e5\uff08\u4fee\u9970\u540d\u8bcd\uff09\u3001\u72b6\u8bed\u4ece\u53e5\uff08\u4fee\u9970\u52a8\u8bcd/\u5f62\u5bb9\u8bcd\uff09\u3001\u540d\u8bcd\u6027\u4ece\u53e5\uff08\u5145\u5f53\u6210\u5206\uff09\u662f\u4e09\u5927\u4e3b\u8f74\u3002\n" +
-                   "3\u5e8f\ufe0f\u20e3 **\u957f\u96be\u53e5\u62c6\u89e3**\uff1a\u9047\u5230\u590d\u6742\u53e5\u5b50\uff0c\u5148\u627e\u4e3b\u8c13\u5bbe\u4e3b\u5e72\uff0c\u518d\u9010\u5c42\u5265\u79bb\u4fee\u9970\u6210\u5206\u3002\n" +
-                   "4\u5e8f\ufe0f\u20e3 **\u53ca\u65f6\u5df3\u56fa**\uff1a\u5b66\u5b8c\u8bed\u6cd5\u89c4\u5219\u540e\u7acb\u523b\u505a\u7ec3\u4e60\uff0c\u9632\u6b62\u9057\u5fd8\u3002\n\n" +
-                   "您可以在「语法解析库」中查看虚拟语气、定语从句、情态动词等 10 个核心专题，每篇均附例句与辨析技巧。";
+            return "【AI 语法讲解】 语法是语言运用的框架，您可以这样系统掌握：\n\n" +
+                   "1️⃣ **时态与语态**：理解 [时间轴 × 动作状态] 的逻辑就能举一反三。\n" +
+                   "2️⃣ **从句结构**：定语从句、状语从句、名词性从句是三大主轴。\n" +
+                   "3️⃣ **长难句拆解**：先找主谓主干，再逐层剥离修饰成分。\n" +
+                   "4️⃣ **及时巩固**：学完语法规则后立刻造句练习。\n\n" +
+                   "您可以问我具体语法点（如“讲解一般现在时”“定语从句怎么用”），或直接发送英文句子让我批改。";
         }
 
         // ── 阅读类 ──────────────────────────────────────────────────────────────
@@ -187,6 +235,28 @@ public class AiServiceImpl implements AiService {
                "• 主要学习痛点（词汇、语法、听力、写作……）\n" +
                "• 近期学习目标（备考、提升日常交流、学术英语……）\n\n" +
                "或者，直接告诉我「给我学习建议」，我将基于您的真实学习数据为您定制专属学习方案！😊";
+    }
+
+    private String buildWritingCorrectionResponse(String query) {
+        List<EnglishWritingAnalyzer.AnalysisResult> results = EnglishWritingAnalyzer
+                .extractEnglishFragments(query)
+                .stream()
+                .map(EnglishWritingAnalyzer::analyze)
+                .toList();
+
+        if (results.isEmpty()) {
+            return "【AI 写作批改】 请直接发送需要批改的英文句子，例如：\n" +
+                   "「I like doges. 请帮我找出错误并修改」\n\n" +
+                   "我会逐条指出错误并给出语法讲解。";
+        }
+        return EnglishWritingAnalyzer.formatCorrectionResponse(query, results);
+    }
+
+    /** 判断文本是否以英文为主（用于识别用户直接发送的英文句子） */
+    private boolean isMostlyEnglish(String text) {
+        long latin = text.chars().filter(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')).count();
+        long cjk = text.chars().filter(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN).count();
+        return latin >= 3 && latin > cjk;
     }
 
     // ─── 工具方法 ───────────────────────────────────────────────────────────────

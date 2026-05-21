@@ -171,6 +171,13 @@ CREATE TABLE `biz_oral` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='口语练习表';
 
+-- 系统配置（AI / 语音 API 集成）
+CREATE TABLE `sys_config` (
+    `config_key` VARCHAR(100) NOT NULL PRIMARY KEY COMMENT '配置键',
+    `config_value` TEXT COMMENT '配置值',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB COMMENT='系统配置表';
+
 -- 3. 基础数据
 INSERT INTO `sys_role` (`role_name`, `role_code`, `description`) VALUES 
 ('管理员', 'ADMIN', '系统最高权限'),

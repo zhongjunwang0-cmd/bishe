@@ -7,7 +7,7 @@ USE `english_learning`;
 CREATE TABLE `sys_user` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `username` VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
-    `password` VARCHAR(100) NOT NULL COMMENT '密码',
+    `password` VARCHAR(255) NOT NULL COMMENT '密码（BCrypt）',
     `nickname` VARCHAR(50) COMMENT '昵称',
     `email` VARCHAR(100) COMMENT '邮箱',
     `role_id` BIGINT COMMENT '角色ID',
@@ -47,6 +47,22 @@ CREATE TABLE `biz_vocab` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='词汇表';
 
+-- 用户生词本（艾宾浩斯复习）
+CREATE TABLE `biz_user_vocab` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `vocab_id` BIGINT NOT NULL COMMENT '词汇ID',
+    `mastery_level` INT DEFAULT 0 COMMENT '掌握度 0-100',
+    `review_stage` INT DEFAULT 0 COMMENT '艾宾浩斯复习阶段 0-6',
+    `status` VARCHAR(20) DEFAULT 'NEW' COMMENT 'NEW/LEARNING/REVIEWING/MASTERED',
+    `next_review_time` DATETIME DEFAULT NULL COMMENT '下次复习时间',
+    `last_review_time` DATETIME DEFAULT NULL COMMENT '上次复习时间',
+    `review_count` INT DEFAULT 0 COMMENT '累计复习次数',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_user_vocab` (`user_id`, `vocab_id`)
+) ENGINE=InnoDB COMMENT='用户生词本';
+
 -- 语法
 CREATE TABLE `biz_grammar` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -83,15 +99,36 @@ CREATE TABLE `biz_learning_record` (
     `type` VARCHAR(20) NOT NULL COMMENT '学习类型',
     `target_id` BIGINT NOT NULL COMMENT '目标ID',
     `duration` INT COMMENT '学习时长(秒)',
+    `score` INT DEFAULT NULL COMMENT '成绩得分',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='学习记录表';
+
+-- 题库模板（教师录入，/generate 随机抽题来源）
+CREATE TABLE `biz_question_bank` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `module_type` VARCHAR(20) NOT NULL COMMENT 'READING/LISTENING/CLOZE',
+    `title` VARCHAR(255) NOT NULL COMMENT '题库标题',
+    `content` TEXT COMMENT '阅读/填空 passage 或听力 transcript',
+    `difficulty` VARCHAR(20) COMMENT '阅读难度',
+    `category` VARCHAR(50) COMMENT '听力分类',
+    `duration` VARCHAR(20) COMMENT '听力时长',
+    `audio_url` VARCHAR(255) COMMENT '听力音频地址',
+    `questions_json` JSON NOT NULL COMMENT '题目与选项 JSON 数组',
+    `answers_json` JSON NOT NULL COMMENT '标准答案与解析 JSON 数组',
+    `status` VARCHAR(20) DEFAULT 'Active' COMMENT 'Active/Inactive',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB COMMENT='题库模板表';
 
 -- 阅读理解
 CREATE TABLE `biz_reading` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `bank_id` BIGINT DEFAULT NULL COMMENT '来源题库ID',
     `title` VARCHAR(200) NOT NULL,
     `content` TEXT,
     `difficulty` VARCHAR(20),
+    `questions_json` JSON COMMENT '题目与选项',
+    `answers_json` JSON COMMENT '标准答案与解析',
     `score` INT DEFAULT NULL,
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='阅读理解表';
@@ -99,10 +136,14 @@ CREATE TABLE `biz_reading` (
 -- 听力训练
 CREATE TABLE `biz_listening` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `bank_id` BIGINT DEFAULT NULL COMMENT '来源题库ID',
     `title` VARCHAR(255) NOT NULL,
     `category` VARCHAR(50),
     `duration` VARCHAR(20),
     `audio_url` VARCHAR(255),
+    `content` TEXT COMMENT '听力原文/说明',
+    `questions_json` JSON COMMENT '题目与选项',
+    `answers_json` JSON COMMENT '标准答案与解析',
     `score` INT DEFAULT NULL,
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB COMMENT='听力训练表';
@@ -110,9 +151,12 @@ CREATE TABLE `biz_listening` (
 -- 选词填空
 CREATE TABLE `biz_cloze` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `bank_id` BIGINT DEFAULT NULL COMMENT '来源题库ID',
     `title` VARCHAR(255) NOT NULL,
     `content` TEXT,
     `blanks_count` INT,
+    `questions_json` JSON COMMENT '各空选项',
+    `answers_json` JSON COMMENT '标准答案与解析',
     `completion_status` VARCHAR(50),
     `score` INT DEFAULT NULL,
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -133,11 +177,11 @@ INSERT INTO `sys_role` (`role_name`, `role_code`, `description`) VALUES
 ('教师', 'TEACHER', '内容维护权限'),
 ('普通用户', 'USER', '基础学习权限');
 
--- 初始管理员 admin/123456 (明文，Shiro 中可配置加密)
+-- 初始账号 admin/teacher/user 默认密码均为 123456（BCrypt）
 INSERT INTO `sys_user` (`username`, `password`, `nickname`, `role_id`) VALUES 
-('admin', '123456', '超级管理员', 1),
-('teacher', '123456', '王老师', 2),
-('user', '123456', '小明', 3);
+('admin', '$2a$10$lNX8Qs8nlvMBUvGf5mkdQu3am0.UrZOS5HBAkHzkkZpdtLeohqylu', '超级管理员', 1),
+('teacher', '$2a$10$lNX8Qs8nlvMBUvGf5mkdQu3am0.UrZOS5HBAkHzkkZpdtLeohqylu', '王老师', 2),
+('user', '$2a$10$lNX8Qs8nlvMBUvGf5mkdQu3am0.UrZOS5HBAkHzkkZpdtLeohqylu', '小明', 3);
 
 -- 演示词汇数据
 INSERT INTO `biz_vocab` (`word`, `phonetic`, `translation`, `example`, `level`) VALUES 

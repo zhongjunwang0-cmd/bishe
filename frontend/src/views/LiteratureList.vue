@@ -54,18 +54,32 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="文献预览" width="800px" top="5vh">
+    <el-dialog v-model="previewVisible" title="文献预览" width="860px" top="5vh">
       <div v-if="currentPreview" class="preview-content">
-        <h3 style="text-align: center; margin-bottom: 20px;">{{ currentPreview.title }}</h3>
-        <p style="text-align: center; color: #666; margin-bottom: 10px;">作者: {{ currentPreview.author }}</p>
-        <div class="pdf-viewer-container">
-          <iframe 
-            v-if="currentPreview.content" 
-            :src="currentPreview.content" 
-            width="100%" 
-            height="600px" 
+        <h3 class="preview-title">{{ currentPreview.title }}</h3>
+        <p class="preview-author">作者：{{ currentPreview.author }}</p>
+        <div class="literature-viewer">
+          <iframe
+            v-if="isFileContent(currentPreview.content)"
+            :src="currentPreview.content"
+            width="100%"
+            height="600px"
             frameborder="0"
           ></iframe>
+          <div v-else-if="currentPreview.content" class="text-reader">
+            <section class="english-section">
+              <h4>英文原文</h4>
+              <p v-for="(paragraph, index) in splitParagraphs(currentPreview.content)" :key="'en-' + index">
+                {{ paragraph }}
+              </p>
+            </section>
+            <section v-if="currentPreview.translation" class="translation-section">
+              <h4>中文译文</h4>
+              <p v-for="(paragraph, index) in splitParagraphs(currentPreview.translation)" :key="'zh-' + index">
+                {{ paragraph }}
+              </p>
+            </section>
+          </div>
           <div v-else class="no-content-tip">
             暂无文献内容预览
           </div>
@@ -115,6 +129,18 @@ const handleAdd = () => {
   form.author = ''
   selectedFile.value = null
   dialogVisible.value = true
+}
+
+const isFileContent = (content: string) => {
+  if (!content) return false
+  return /^(\/uploads\/|https?:\/\/)/.test(content.trim())
+}
+
+const splitParagraphs = (text: string) => {
+  return text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
 }
 
 const handlePreview = (row: any) => {
@@ -200,12 +226,56 @@ const handleDelete = (row: any) => {
 <style scoped>
 .literature-container { padding: 10px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
-.pdf-viewer-container {
+.preview-title {
+  text-align: center;
+  margin-bottom: 12px;
+}
+.preview-author {
+  text-align: center;
+  color: #666;
+  margin-bottom: 16px;
+}
+.literature-viewer {
   background: #f5f7fa;
   border-radius: 4px;
   min-height: 400px;
   border: 1px solid #dcdfe6;
   overflow: hidden;
+}
+.text-reader {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 24px 28px;
+  background: #fff;
+}
+.english-section,
+.translation-section {
+  margin-bottom: 24px;
+}
+.english-section:last-child,
+.translation-section:last-child {
+  margin-bottom: 0;
+}
+.english-section h4,
+.translation-section h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #303133;
+  border-left: 3px solid #409eff;
+  padding-left: 10px;
+}
+.translation-section h4 {
+  border-left-color: #67c23a;
+}
+.text-reader p {
+  margin: 0 0 14px;
+  line-height: 1.85;
+  font-size: 15px;
+  color: #303133;
+  text-align: justify;
+}
+.translation-section p {
+  color: #606266;
 }
 .no-content-tip {
   display: flex;

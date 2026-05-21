@@ -19,7 +19,7 @@ const routes = [
             {
                 path: 'vocab',
                 name: 'Vocab',
-                component: () => import('../views/VocabList.vue')
+                component: () => import('../views/VocabLearning.vue')
             },
             {
                 path: 'grammar',
@@ -100,7 +100,7 @@ const routes = [
             {
                 path: 'admin/vocab',
                 name: 'VocabManagement',
-                meta: { roles: ['Admin'] },
+                meta: { roles: ['Admin', 'Teacher'] },
                 component: () => import('../views/VocabList.vue')
             },
             {

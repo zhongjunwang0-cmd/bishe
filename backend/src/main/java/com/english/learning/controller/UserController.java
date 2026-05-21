@@ -3,6 +3,7 @@ package com.english.learning.controller;
 import com.english.learning.common.Result;
 import com.english.learning.entity.User;
 import com.english.learning.service.UserService;
+import com.english.learning.util.PasswordService;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.subject.Subject;
@@ -15,6 +16,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PasswordService passwordService;
 
     @PostMapping("/login")
     public Result<?> login(@RequestBody User loginUser) {
@@ -34,7 +38,8 @@ public class UserController {
         if (userService.findByUsername(user.getUsername()) != null) {
             return Result.error("用户名已存在");
         }
-        user.setRoleId(3L); // 默认普通用户
+        user.setRoleId(3L);
+        user.setPassword(passwordService.encode(user.getPassword()));
         userService.save(user);
         return Result.success("注册成功");
     }
@@ -51,7 +56,7 @@ public class UserController {
         if (existingUser == null) {
             return Result.error("用户名不存在");
         }
-        existingUser.setPassword(user.getPassword());
+        existingUser.setPassword(passwordService.encode(user.getPassword()));
         userService.save(existingUser);
         return Result.success("密码重置成功");
     }

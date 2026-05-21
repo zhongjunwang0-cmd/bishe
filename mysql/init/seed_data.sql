@@ -111,14 +111,14 @@ INSERT INTO `biz_reading` (`title`, `content`, `difficulty`, `score`) VALUES
 '简单', 88);
 
 INSERT INTO `biz_listening` (`title`, `category`, `duration`, `audio_url`, `score`) VALUES
-('BBC新闻：全球气候峰会最新进展',       'BBC新闻',   '03:45', NULL, 88),
-('托福听力模拟 — 大学讲座：心理学导论', 'TOEFL模拟', '06:20', NULL, 75),
-('雅思听力练习 — 租房对话场景',         'IELTS模拟', '04:15', NULL, 82),
-('TED演讲：语言如何塑造我们的思维',     'TED演讲',   '08:30', NULL, 91),
-('日常英语对话 — 在机场办理登机手续',   '日常口语',  '02:50', NULL, 95),
-('学术英语 — 研究方法论讲座节选',       '学术讲座',  '10:00', NULL, NULL),
-('CNN商业新闻 — 科技公司季报解读',      '商业英语',  '05:10', NULL, 79),
-('英式英语精听 — 爱丁堡旅游指南',       '英式英语',  '04:40', NULL, 86);
+('BBC新闻：全球气候峰会最新进展',       'BBC新闻',   '03:45', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 88),
+('托福听力模拟 — 大学讲座：心理学导论', 'TOEFL模拟', '06:20', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 75),
+('雅思听力练习 — 租房对话场景',         'IELTS模拟', '04:15', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 82),
+('TED演讲：语言如何塑造我们的思维',     'TED演讲',   '08:30', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 91),
+('日常英语对话 — 在机场办理登机手续',   '日常口语',  '02:50', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 95),
+('学术英语 — 研究方法论讲座节选',       '学术讲座',  '10:00', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', NULL),
+('CNN商业新闻 — 科技公司季报解读',      '商业英语',  '05:10', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 79),
+('英式英语精听 — 爱丁堡旅游指南',       '英式英语',  '04:40', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3', 86);
 
 INSERT INTO `biz_cloze` (`title`, `content`, `blanks_count`, `completion_status`, `score`) VALUES
 ('科技与生活 — 智能手机依赖',
@@ -167,26 +167,87 @@ INSERT INTO `biz_discuss` (`user_id`, `content`, `target_type`, `target_id`) VAL
 (6, '定语从句的限定性和非限定性区分，老师如果能多出几道辨析练习题就更好了。', 'GRAMMAR', 2),
 (3, '我用学习记录功能追踪了自己一个月的词汇学习进度，进步很明显，这个功能设计得很好！', 'VOCAB', 5);
 
-INSERT INTO `biz_learning_record` (`user_id`, `type`, `target_id`, `duration`) VALUES
-(3, 'VOCAB',    3,  720),
-(3, 'VOCAB',    4,  540),
-(3, 'GRAMMAR',  1, 1800),
-(3, 'GRAMMAR',  3, 1200),
-(3, 'LIT',      1, 3600),
-(3, 'READING',  1, 2400),
-(3, 'LISTENING',1, 1350),
-(3, 'CLOZE',    1,  600),
-(3, 'ORAL',     1, 1800),
-(4, 'VOCAB',    5,  480),
-(4, 'VOCAB',    8,  360),
-(4, 'GRAMMAR',  2, 1500),
-(4, 'LIT',      2, 2700),
-(4, 'READING',  3, 1800),
-(5, 'VOCAB',    6,  420),
-(5, 'GRAMMAR',  5,  900),
-(5, 'LIT',      4, 3000),
-(5, 'LISTENING',3, 2550),
-(6, 'VOCAB',    7,  600),
-(6, 'GRAMMAR',  7, 1200),
-(6, 'READING',  5, 2100),
-(6, 'ORAL',     3,  900);
+INSERT INTO `biz_learning_record` (`user_id`, `type`, `target_id`, `duration`, `score`) VALUES
+(3, 'VOCAB',    3,  720, NULL),
+(3, 'VOCAB',    4,  540, NULL),
+(3, 'GRAMMAR',  1, 1800, NULL),
+(3, 'GRAMMAR',  3, 1200, NULL),
+(3, 'LIT',      1, 3600, NULL),
+(3, 'READING',  1, 2400, 85),
+(3, 'LISTENING',1, 1350, 78),
+(3, 'CLOZE',    1,  600, 92),
+(3, 'ORAL',     1, 1800, 88),
+(4, 'VOCAB',    5,  480, NULL),
+(4, 'VOCAB',    8,  360, NULL),
+(4, 'GRAMMAR',  2, 1500, NULL),
+(4, 'LIT',      2, 2700, NULL),
+(4, 'READING',  3, 1800, 76),
+(5, 'VOCAB',    6,  420, NULL),
+(5, 'GRAMMAR',  5,  900, NULL),
+(5, 'LIT',      4, 3000, NULL),
+(5, 'LISTENING',3, 2550, 81),
+(6, 'VOCAB',    7,  600, NULL),
+(6, 'GRAMMAR',  7, 1200, NULL),
+(6, 'READING',  5, 2100, 90),
+(6, 'ORAL',     3,  900, 72);
+
+-- 题库模板（/generate 随机抽题来源）
+INSERT INTO `biz_question_bank` (`module_type`, `title`, `content`, `difficulty`, `questions_json`, `answers_json`, `status`) VALUES
+('READING', '城市化与可持续发展',
+'Rapid urbanization presents both tremendous opportunities and formidable challenges for sustainable development. By 2050, an estimated 68% of the world population will reside in urban areas, placing enormous pressure on infrastructure, resources, and ecosystem services. Smart city initiatives leverage digital technologies including IoT sensors, big data analytics, and AI optimization to improve energy efficiency, reduce traffic congestion, and enhance public services.',
+'Medium',
+'[{"question":"By 2050, what percentage of the world population is expected to live in urban areas?","options":[{"label":"A. 50%","value":"A"},{"label":"B. 68%","value":"B"},{"label":"C. 75%","value":"C"},{"label":"D. 80%","value":"D"}]},{"question":"Which technologies are mentioned as part of smart city initiatives?","options":[{"label":"A. IoT sensors and big data analytics","value":"A"},{"label":"B. Nuclear power and fossil fuels","value":"B"},{"label":"C. Traditional agriculture only","value":"C"},{"label":"D. Manual record keeping","value":"D"}]}]',
+'[{"correct":"B","explanation":"The passage explicitly states that 68% of the world population will reside in urban areas by 2050."},{"correct":"A","explanation":"Smart city initiatives use IoT sensors, big data analytics, and AI optimization according to the passage."}]',
+'Active'),
+
+('READING', '数字时代的阅读习惯变迁',
+'The advent of digital media has fundamentally altered reading behaviors across all demographic groups. Research indicates that while overall reading rates have declined, digital reading has significantly increased, particularly among younger generations who prefer news aggregators, social media feeds, and e-books over traditional print media. Cognitive scientists distinguish between deep reading — the slow, immersive engagement with complex texts that builds critical thinking — and skimming, the rapid scanning behavior typical of online reading.',
+'Hard',
+'[{"question":"What trend does the passage describe regarding digital reading?","options":[{"label":"A. It has significantly increased","value":"A"},{"label":"B. It has completely disappeared","value":"B"},{"label":"C. It is only popular among older adults","value":"C"},{"label":"D. It has replaced all print media","value":"D"}]},{"question":"How do cognitive scientists define deep reading?","options":[{"label":"A. Rapid scanning of online content","value":"A"},{"label":"B. Slow, immersive engagement with complex texts","value":"B"},{"label":"C. Reading only social media feeds","value":"C"},{"label":"D. Skimming headlines quickly","value":"D"}]}]',
+'[{"correct":"A","explanation":"The passage states digital reading has significantly increased despite overall reading rate decline."},{"correct":"B","explanation":"Deep reading is defined as slow, immersive engagement that builds critical thinking."}]',
+'Active'),
+
+('READING', '音乐与语言习得的关联',
+'Emerging research in cognitive neuroscience reveals striking parallels between musical and linguistic processing in the human brain. Both music and language engage overlapping neural networks responsible for rhythm perception, syntactic processing, and working memory. Studies indicate that early musical training significantly enhances phonological awareness, a critical prerequisite for reading acquisition.',
+'Medium',
+'[{"question":"What neural functions do music and language share according to the passage?","options":[{"label":"A. Rhythm perception and syntactic processing","value":"A"},{"label":"B. Visual processing only","value":"B"},{"label":"C. Motor coordination exclusively","value":"C"},{"label":"D. Long-term memory storage only","value":"D"}]},{"question":"What effect does early musical training have?","options":[{"label":"A. It reduces vocabulary size","value":"A"},{"label":"B. It enhances phonological awareness","value":"B"},{"label":"C. It has no effect on reading","value":"C"},{"label":"D. It replaces language learning","value":"D"}]}]',
+'[{"correct":"A","explanation":"Both engage networks for rhythm perception, syntactic processing, and working memory."},{"correct":"B","explanation":"Early musical training significantly enhances phonological awareness, a prerequisite for reading."}]',
+'Active');
+
+INSERT INTO `biz_question_bank` (`module_type`, `title`, `content`, `category`, `duration`, `audio_url`, `questions_json`, `answers_json`, `status`) VALUES
+('LISTENING', '日常英语 — 软件更新对话', 'M: Have you tried out the new software update they pushed yesterday?\nW: Yes, I have! The interface is so much cleaner and easier to use.',
+'日常口语', '02:30', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3',
+'[{"question":"What are the speakers discussing?","options":[{"label":"A. A weekend trip","value":"A"},{"label":"B. A new software program","value":"B"},{"label":"C. A job interview","value":"C"},{"label":"D. Dinner plans","value":"D"}]},{"question":"How does the woman feel about the update?","options":[{"label":"A. She thinks it is confusing","value":"A"},{"label":"B. She loves the new interface","value":"B"},{"label":"C. She has not downloaded it yet","value":"C"},{"label":"D. She wants to revert to the old version","value":"D"}]}]',
+'[{"correct":"B","explanation":"The male speaker mentions trying out a new software update.","transcript":"M: Have you tried out the new software update they pushed yesterday?"},{"correct":"B","explanation":"The woman praises the cleaner and easier interface.","transcript":"W: Yes, I have! The interface is so much cleaner and easier to use."}]',
+'Active'),
+
+('LISTENING', 'TED演讲 — 语言与思维', 'Language is not merely a tool for communication — it fundamentally shapes how we perceive and categorize the world around us. Different languages encode concepts differently, influencing speakers cognitive frameworks.',
+'TED演讲', '08:30', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3',
+'[{"question":"What is the main idea of the talk?","options":[{"label":"A. Language shapes how we think","value":"A"},{"label":"B. All languages are identical","value":"B"},{"label":"C. Translation is impossible","value":"C"},{"label":"D. Grammar rules are universal","value":"D"}]},{"question":"How do different languages differ according to the speaker?","options":[{"label":"A. They encode concepts differently","value":"A"},{"label":"B. They use the same vocabulary","value":"B"},{"label":"C. They have no cultural influence","value":"C"},{"label":"D. They only differ in pronunciation","value":"D"}]}]',
+'[{"correct":"A","explanation":"The talk argues language shapes perception and categorization of the world.","transcript":"Language is not merely a tool for communication — it fundamentally shapes how we perceive..."},{"correct":"A","explanation":"Different languages encode concepts differently, influencing cognitive frameworks.","transcript":"Different languages encode concepts differently..."}]',
+'Active'),
+
+('LISTENING', 'IELTS模拟 — 租房对话', 'Agent: Good morning, I have a two-bedroom flat available near the university.\nStudent: That sounds perfect. What is the monthly rent and does it include utilities?',
+'IELTS模拟', '04:15', 'https://onlinetestcase.com/wp-content/uploads/2023/06/100-KB-MP3.mp3',
+'[{"question":"What type of accommodation is being discussed?","options":[{"label":"A. A two-bedroom flat","value":"A"},{"label":"B. A studio apartment","value":"B"},{"label":"C. A shared dormitory","value":"C"},{"label":"D. A hotel room","value":"D"}]},{"question":"What does the student want to know?","options":[{"label":"A. The monthly rent and utilities","value":"A"},{"label":"B. The landlord name only","value":"B"},{"label":"C. The building age","value":"C"},{"label":"D. The number of floors","value":"D"}]}]',
+'[{"correct":"A","explanation":"The agent offers a two-bedroom flat near the university.","transcript":"I have a two-bedroom flat available near the university."},{"correct":"A","explanation":"The student asks about monthly rent and whether utilities are included.","transcript":"What is the monthly rent and does it include utilities?"}]',
+'Active');
+
+INSERT INTO `biz_question_bank` (`module_type`, `title`, `content`, `questions_json`, `answers_json`, `status`) VALUES
+('CLOZE', '语言学习基础',
+'Learning a foreign language (1)_____ a lot of time and practice. However, it is very rewarding. You can communicate with people from other (2)_____ and understand their culture better.',
+'[{"blankIndex":1,"options":["takes","spends","costs","pays"]},{"blankIndex":2,"options":["cities","countries","villages","towns"]}]',
+'[{"correct":"takes","explanation":"take time 意为花费时间，主语为动名词 Learning。"},{"correct":"countries","explanation":"与 foreign language 和 culture 搭配，countries 最恰当。"}]',
+'Active'),
+
+('CLOZE', '科技与生活 — 智能手机依赖',
+'Modern smartphones have become (1)_____ tools in daily life, transforming how people (2)_____, work, and entertain themselves. Research suggests that the (3)_____ use of smartphones is associated with decreased attention spans.',
+'[{"blankIndex":1,"options":["indispensable","optional","temporary","minor"]},{"blankIndex":2,"options":["communicate","calculate","negotiate","compete"]},{"blankIndex":3,"options":["excessive","moderate","minimal","occasional"]}]',
+'[{"correct":"indispensable","explanation":"智能手机已成为日常生活中不可或缺的工具。"},{"correct":"communicate","explanation":"人们用手机交流、工作和娱乐。"},{"correct":"excessive","explanation":"过度使用智能手机与注意力下降相关。"}]',
+'Active'),
+
+('CLOZE', '环境保护 — 碳中和目标',
+'Global efforts to achieve carbon (1)_____ have accelerated in response to increasingly (2)_____ climate change impacts. Governments and corporations are pledging to reduce greenhouse gas (3)_____.',
+'[{"blankIndex":1,"options":["neutrality","stability","efficiency","diversity"]},{"blankIndex":2,"options":["severe","minor","temporary","predictable"]},{"blankIndex":3,"options":["emissions","production","consumption","investment"]}]',
+'[{"correct":"neutrality","explanation":"carbon neutrality 碳中和是固定搭配。"},{"correct":"severe","explanation":"气候变化影响日益严重。"},{"correct":"emissions","explanation":"greenhouse gas emissions 温室气体排放。"}]',
+'Active');

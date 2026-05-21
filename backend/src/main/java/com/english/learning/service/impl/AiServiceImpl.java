@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.english.learning.entity.LearningRecord;
 import com.english.learning.service.AiService;
 import com.english.learning.service.LearningRecordService;
+import com.english.learning.util.LearningRecordTypeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -30,17 +31,6 @@ public class AiServiceImpl implements AiService {
     @Autowired
     private LearningRecordService learningRecordService;
 
-    // ─── 模块中文映射 ───────────────────────────────────────────────────────────
-    private static final Map<String, String> TYPE_ZH = Map.of(
-            "VOCAB",    "词汇学习",
-            "GRAMMAR",  "语法解析",
-            "LIT",      "文献阅读",
-            "READING",  "阅读理解",
-            "LISTENING","听力训练",
-            "CLOZE",    "选词填空",
-            "ORAL",     "口语练习"
-    );
-
     // ─── 个性化建议（基于真实学习记录） ─────────────────────────────────────────
     @Override
     public String getPersonalizedAdvice(Long userId) {
@@ -56,7 +46,9 @@ public class AiServiceImpl implements AiService {
 
         // 统计各模块学习次数
         Map<String, Long> typeCounts = records.stream()
-                .collect(Collectors.groupingBy(LearningRecord::getType, Collectors.counting()));
+                .collect(Collectors.groupingBy(
+                        r -> LearningRecordTypeUtil.normalize(r.getType()),
+                        Collectors.counting()));
 
         int totalDurationSecs = records.stream()
                 .mapToInt(r -> r.getDuration() != null ? r.getDuration() : 0).sum();
@@ -64,13 +56,13 @@ public class AiServiceImpl implements AiService {
 
         String topType = typeCounts.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
-                .map(e -> TYPE_ZH.getOrDefault(e.getKey(), e.getKey()))
+                .map(e -> LearningRecordTypeUtil.toDisplayName(e.getKey()))
                 .orElse("未知");
 
         // 找出缺少练习的模块
         List<String> missingTypes = List.of("VOCAB","GRAMMAR","READING","LISTENING","ORAL").stream()
                 .filter(t -> !typeCounts.containsKey(t))
-                .map(t -> TYPE_ZH.getOrDefault(t, t))
+                .map(LearningRecordTypeUtil::toDisplayName)
                 .collect(Collectors.toList());
 
         StringBuilder advice = new StringBuilder("【AI 学习顾问】 ");

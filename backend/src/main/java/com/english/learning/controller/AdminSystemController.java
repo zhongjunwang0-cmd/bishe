@@ -1,12 +1,14 @@
 package com.english.learning.controller;
 
 import com.english.learning.common.Result;
+import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/system")
+@RequiresRoles("ADMIN")
 public class AdminSystemController {
 
     // Mocking an in-memory configuration storage

@@ -17,12 +17,15 @@ public class UserRealm extends AuthorizingRealm {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    public UserRealm(BcryptCredentialsMatcher bcryptCredentialsMatcher) {
+        setCredentialsMatcher(bcryptCredentialsMatcher);
+    }
+
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
-        // 简单实现，后续扩展权限
         SimpleAuthorizationInfo info = new SimpleAuthorizationInfo();
         User user = (User) principals.getPrimaryPrincipal();
-        // 根据角色 ID 添加角色
         if (user.getRoleId() == 1L) info.addRole("ADMIN");
         else if (user.getRoleId() == 2L) info.addRole("TEACHER");
         else info.addRole("USER");

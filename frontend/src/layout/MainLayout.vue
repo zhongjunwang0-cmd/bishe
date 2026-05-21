@@ -75,7 +75,7 @@
             <el-icon><EditPen /></el-icon>
             <span>教学管理</span>
           </template>
-          <el-menu-item index="/vocab">
+          <el-menu-item index="/admin/vocab" v-if="currentRole === 'Teacher' || currentRole === 'Admin'">
             <el-icon><Collection /></el-icon>
             <span>词汇内容管理</span>
           </el-menu-item>

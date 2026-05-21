@@ -13,5 +13,6 @@ public class LearningRecord {
     private String type;
     private Long targetId;
     private Integer duration;
+    private Integer score;
     private LocalDateTime createTime;
 }

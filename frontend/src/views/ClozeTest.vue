@@ -32,74 +32,94 @@
       </el-table>
     </el-card>
 
-    <!-- Test Dialog -->
     <el-dialog v-model="testDialogVisible" :title="currentTest?.title || '填空测试'" width="60%" top="5vh">
-      <div v-if="currentTest" class="test-content">
+      <div v-if="currentTest" class="test-content" v-loading="detailLoading">
         <el-alert title="请通读全文并为每个空格选择最恰当的词汇。" type="info" show-icon :closable="false" style="margin-bottom: 15px;" />
-        
-        <div class="passage-box">
-          <p class="passage-text">Learning a foreign language <span class="blank-slot">(1) <el-select v-model="answers[0]" placeholder="选择" size="small" style="width: 100px;"><el-option v-for="opt in mockQuestions[0].options" :key="opt" :label="opt" :value="opt"/></el-select></span> a lot of time and practice. However, it is very rewarding. You can communicate with people from other <span class="blank-slot">(2) <el-select v-model="answers[1]" placeholder="选择" size="small" style="width: 100px;"><el-option v-for="opt in mockQuestions[1].options" :key="opt" :label="opt" :value="opt"/></el-select></span> and understand their culture better.</p>
+        <div class="passage-box" v-if="questions.length">
+          <p class="passage-text">
+            <template v-for="(part, idx) in passageParts" :key="idx">
+              <span v-if="part.type === 'text'">{{ part.value }}</span>
+              <span v-else class="blank-slot">({{ part.index }})
+                <el-select v-model="answers[part.index - 1]" placeholder="选择" size="small" style="width: 120px;">
+                  <el-option v-for="opt in questions[part.index - 1]?.options || []" :key="opt" :label="opt" :value="opt" />
+                </el-select>
+              </span>
+            </template>
+          </p>
         </div>
+        <el-empty v-else description="该测试暂无结构化题目，请使用「开始新填空」从题库生成" />
       </div>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="testDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitTest" :loading="submitting">提交答案</el-button>
-        </div>
+        <el-button @click="testDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitTest" :loading="submitting" :disabled="!questions.length">提交答案</el-button>
       </template>
     </el-dialog>
 
-    <!-- Key Dialog -->
     <el-dialog v-model="keyDialogVisible" :title="(currentTest?.title || '') + ' - 答案解析'" width="50%" top="5vh">
-      <div v-if="currentTest" class="key-content">
+      <div v-if="currentTest" class="key-content" v-loading="detailLoading">
         <el-alert title="以下为标准答案及解析。" type="success" show-icon :closable="false" style="margin-bottom: 20px;" />
-        
-        <div class="passage-box" style="margin-bottom: 20px;">
-          <p class="passage-text">Learning a foreign language <strong>takes</strong> a lot of time and practice. However, it is very rewarding. You can communicate with people from other <strong>countries</strong> and understand their culture better.</p>
+        <div class="passage-box" style="margin-bottom: 20px;" v-if="filledPassage">
+          <p class="passage-text">{{ filledPassage }}</p>
         </div>
-
-        <div v-for="(q, index) in mockQuestions" :key="index" class="key-item">
+        <div v-for="(ans, index) in answerKeys" :key="index" class="key-item">
           <p><strong>空格 ({{ index + 1 }}):</strong></p>
-          <p><span class="label">标准答案:</span> <el-tag type="success">{{ q.correct }}</el-tag></p>
-          <p><span class="label">解析:</span> <span class="explanation">{{ q.explanation }}</span></p>
+          <p><span class="label">标准答案:</span> <el-tag type="success">{{ ans.correct }}</el-tag></p>
+          <p><span class="label">解析:</span> <span class="explanation">{{ ans.explanation }}</span></p>
           <el-divider />
         </div>
       </div>
       <template #footer>
-        <span class="dialog-footer">
-          <el-button type="primary" @click="keyDialogVisible = false">关闭</el-button>
-        </span>
+        <el-button type="primary" @click="keyDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
 const tableData = ref<any[]>([])
 const loading = ref(false)
-
+const detailLoading = ref(false)
 const testDialogVisible = ref(false)
 const keyDialogVisible = ref(false)
 const currentTest = ref<any>(null)
+const questions = ref<any[]>([])
+const answerKeys = ref<any[]>([])
 const answers = ref<string[]>([])
 const submitting = ref(false)
 
-const mockQuestions = [
-  {
-    options: ["takes", "spends", "costs", "pays"],
-    correct: "takes",
-    explanation: "'take time' 意为‘花费时间’，主语通常为物或动名词（Learning），符合语境。"
-  },
-  {
-    options: ["cities", "countries", "villages", "towns"],
-    correct: "countries",
-    explanation: "结合下文的 'foreign language' 和 'understand their culture'，与外国人交流最恰当的词是 'countries'（国家）。"
+const parsePassage = (content: string) => {
+  if (!content) return []
+  const parts: Array<{ type: 'text' | 'blank'; value?: string; index?: number }> = []
+  const regex = /(\(\d+\)_____)/g
+  let lastIndex = 0
+  let match
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', value: content.slice(lastIndex, match.index) })
+    }
+    const index = parseInt(match[1].replace(/\D/g, ''), 10)
+    parts.push({ type: 'blank', index })
+    lastIndex = regex.lastIndex
   }
-]
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', value: content.slice(lastIndex) })
+  }
+  return parts
+}
+
+const passageParts = computed(() => parsePassage(currentTest.value?.content || ''))
+
+const filledPassage = computed(() => {
+  let text = currentTest.value?.content || ''
+  answerKeys.value.forEach((ans, i) => {
+    text = text.replace(`(${i + 1})_____`, ans.correct)
+  })
+  return text.replace(/\n\n选项：[\s\S]*/g, '').trim()
+})
 
 const fetchClozes = async () => {
   loading.value = true
@@ -108,41 +128,61 @@ const fetchClozes = async () => {
     if (res.data.code === 200) {
       tableData.value = res.data.data
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('无法加载选词填空列表')
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  fetchClozes()
-})
-
-const handleNewCloze = async () => {
-  ElMessage.success('正在为您生成新的选词填空题目...')
+const loadDetail = async (id: number, withAnswers = false) => {
+  detailLoading.value = true
+  questions.value = []
+  answerKeys.value = []
   try {
-    const res = await axios.post('/api/cloze/generate')
+    const res = await axios.get(`/api/cloze/${id}`)
     if (res.data.code === 200) {
-      ElMessage.success('生成成功！')
-      fetchClozes()
-    } else {
-      ElMessage.error(res.data.msg || '生成失败')
+      currentTest.value = res.data.data
+      questions.value = res.data.data.questions || []
     }
-  } catch (error) {
-    // 隐藏无法连接报错，axios 拦截器如果返回401会自动跳登录
+    if (withAnswers) {
+      const ansRes = await axios.get(`/api/cloze/${id}/answers`)
+      if (ansRes.data.code === 200) {
+        answerKeys.value = ansRes.data.data || []
+      }
+    }
+  } catch {
+    ElMessage.error('加载题目失败')
+  } finally {
+    detailLoading.value = false
   }
 }
 
-const handleStart = (row: any) => {
-  currentTest.value = row
-  answers.value = Array(mockQuestions.length).fill('')
-  testDialogVisible.value = true
+onMounted(fetchClozes)
+
+const handleNewCloze = async () => {
+  try {
+    const res = await axios.post('/api/cloze/generate')
+    if (res.data.code === 200) {
+      ElMessage.success('已从题库随机生成选词填空')
+      fetchClozes()
+    } else {
+      ElMessage.error(res.data.message || '生成失败')
+    }
+  } catch {}
 }
 
-const handleViewKey = (row: any) => {
+const handleStart = async (row: any) => {
+  currentTest.value = row
+  testDialogVisible.value = true
+  await loadDetail(row.id)
+  answers.value = Array(questions.value.length).fill('')
+}
+
+const handleViewKey = async (row: any) => {
   currentTest.value = row
   keyDialogVisible.value = true
+  await loadDetail(row.id, true)
 }
 
 const submitTest = async () => {
@@ -150,33 +190,21 @@ const submitTest = async () => {
     ElMessage.warning('请完成所有填空后再提交')
     return
   }
-
-  let correctCount = 0
-  answers.value.forEach((ans, index) => {
-    if (ans === mockQuestions[index].correct) {
-      correctCount++
-    }
-  })
-  
-  const calculatedScore = Math.round((correctCount / mockQuestions.length) * 100)
-  
   submitting.value = true
   try {
-    const res = await axios.put(`/api/cloze/${currentTest.value.id}/score`, { score: calculatedScore })
+    const res = await axios.post(`/api/cloze/${currentTest.value.id}/submit`, { answers: answers.value })
     if (res.data.code === 200) {
-      ElMessage.success(`提交成功！您的得分是: ${calculatedScore} 分`)
+      const score = res.data.data.score
+      ElMessage.success(`提交成功！您的得分是: ${score} 分`)
       testDialogVisible.value = false
       fetchClozes()
-      
-      // 添加学习记录
       try {
-        await axios.post('/api/record/add', { type: '选词填空', targetId: currentTest.value.id, duration: 300 })
-      } catch (e) {}
-      
+        await axios.post('/api/record/add', { type: '选词填空', targetId: currentTest.value.id, duration: 300, score })
+      } catch {}
     } else {
-      ElMessage.error('分数上传失败')
+      ElMessage.error(res.data.message || '提交失败')
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('网络错误，无法提交得分')
   } finally {
     submitting.value = false
@@ -187,33 +215,10 @@ const submitTest = async () => {
 <style scoped>
 .cloze-container { padding: 10px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
-.passage-box {
-  background-color: #f9fafc;
-  padding: 25px;
-  border-radius: 8px;
-  border: 1px solid #ebeef5;
-  line-height: 2.2;
-}
-.passage-text {
-  font-size: 16px;
-  color: #303133;
-}
-.blank-slot {
-  display: inline-block;
-  margin: 0 8px;
-  font-weight: bold;
-  color: #409EFF;
-}
-.key-item {
-  margin-bottom: 15px;
-}
-.label {
-  font-weight: bold;
-  color: #606266;
-  margin-right: 8px;
-}
-.explanation {
-  color: #666;
-  line-height: 1.6;
-}
+.passage-box { background-color: #f9fafc; padding: 25px; border-radius: 8px; border: 1px solid #ebeef5; line-height: 2.2; }
+.passage-text { font-size: 16px; color: #303133; white-space: pre-wrap; }
+.blank-slot { display: inline-block; margin: 0 4px; font-weight: bold; color: #409EFF; }
+.key-item { margin-bottom: 15px; }
+.label { font-weight: bold; color: #606266; margin-right: 8px; }
+.explanation { color: #666; line-height: 1.6; }
 </style>

@@ -1,9 +1,10 @@
 package com.english.learning.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.english.learning.common.Result;
 import com.english.learning.entity.User;
 import com.english.learning.service.UserService;
+import com.english.learning.util.PasswordService;
+import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,10 +15,16 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/user")
+@RequiresRoles("ADMIN")
 public class AdminUserController {
+
+    private static final String DEFAULT_PASSWORD = "123456";
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PasswordService passwordService;
 
     @GetMapping("/list")
     public Result<List<Map<String, Object>>> listUsers() {
@@ -31,7 +38,7 @@ public class AdminUserController {
                 "id", user.getId(),
                 "username", user.getUsername(),
                 "role", roleStr,
-                "status", true // Mock status for now
+                "status", true
             );
         }).collect(Collectors.toList());
         return Result.success(result);
@@ -46,7 +53,7 @@ public class AdminUserController {
         }
         User newUser = new User();
         newUser.setUsername(username);
-        newUser.setPassword("123456"); // default default password
+        newUser.setPassword(passwordService.encode(DEFAULT_PASSWORD));
         newUser.setNickname(username);
         newUser.setRoleId("Admin".equals(role) ? 1L : ("Teacher".equals(role) ? 2L : 3L));
         newUser.setCreateTime(LocalDateTime.now());
@@ -72,7 +79,7 @@ public class AdminUserController {
         if (user == null) {
             return Result.error("用户不存在");
         }
-        user.setPassword("123456");
+        user.setPassword(passwordService.encode(DEFAULT_PASSWORD));
         userService.updateById(user);
         return Result.success("密码重置成功");
     }

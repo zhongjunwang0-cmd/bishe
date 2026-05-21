@@ -5,6 +5,7 @@ import com.english.learning.common.Result;
 import com.english.learning.entity.LearningRecord;
 import com.english.learning.entity.User;
 import com.english.learning.service.LearningRecordService;
+import com.english.learning.util.LearningRecordTypeUtil;
 import org.apache.shiro.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -39,7 +40,9 @@ public class RecordController {
             Map<String, Object> activity = new HashMap<>();
             activity.put("timestamp", record.getCreateTime() != null ? record.getCreateTime().format(formatter) : "");
             activity.put("type", "primary");
-            activity.put("content", "完成了 " + record.getType() + " 学习，时长: " + (record.getDuration() == null ? 0 : record.getDuration()) + " 秒");
+            activity.put("content", "完成了 " + LearningRecordTypeUtil.toDisplayName(record.getType())
+                    + " 学习，时长: " + (record.getDuration() == null ? 0 : record.getDuration()) + " 秒"
+                    + (record.getScore() != null ? "，得分: " + record.getScore() : ""));
             activities.add(activity);
         }
 
@@ -53,6 +56,7 @@ public class RecordController {
             return Result.error("未登录");
         }
         record.setUserId(currentUser.getId());
+        record.setType(LearningRecordTypeUtil.normalize(record.getType()));
         learningRecordService.save(record);
         return Result.success("记录保存成功");
     }

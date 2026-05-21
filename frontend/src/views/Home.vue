@@ -115,6 +115,7 @@ const username = ref(localStorage.getItem('username') || '用户')
 const aiAdvice = ref('')
 const loadingAdvice = ref(true)
 const chartRef = ref<HTMLElement | null>(null)
+const statsData = ref<any>(null)
 
 // ── Role metadata ──────────────────────────────────────
 const currentRoleLabel = computed(() => {
@@ -140,28 +141,28 @@ const roleWelcomeText = computed(() => {
 })
 
 // ── Role-aware stats ────────────────────────────────────
-const adminStats = [
-  { title: '总注册用户数', value: '15,280', icon: 'User' },
-  { title: '今日活跃用户', value: '3,415', icon: 'TrendCharts' },
-  { title: '总题库数量', value: '8,156', icon: 'Collection' },
-  { title: '总讨论互动数', value: '98,100', icon: 'ChatDotRound' }
-]
-const teacherStats = [
+const adminStats = ref([
+  { title: '总注册用户数', value: '-', icon: 'User' },
+  { title: '今日活跃用户', value: '-', icon: 'TrendCharts' },
+  { title: '学习记录总数', value: '-', icon: 'Collection' },
+  { title: '覆盖模块数', value: '-', icon: 'ChatDotRound' }
+])
+const teacherStats = ref([
   { title: '我的班级学生', value: '128', icon: 'User' },
   { title: '已发布内容', value: '47', icon: 'Document' },
   { title: '待批改测试', value: '12', icon: 'EditPen' },
   { title: '本周互动次数', value: '236', icon: 'ChatDotRound' }
-]
-const userStats = [
-  { title: '已学词汇', value: '1,280', icon: 'Collection' },
-  { title: '完成文献', value: '15', icon: 'Document' },
-  { title: '学习时长(H)', value: '156', icon: 'Clock' },
-  { title: '今日自测', value: '98/100', icon: 'Trophy' }
-]
+])
+const userStats = ref([
+  { title: '已学词汇', value: '-', icon: 'Collection' },
+  { title: '完成文献', value: '-', icon: 'Document' },
+  { title: '学习时长(H)', value: '-', icon: 'Clock' },
+  { title: '今日自测', value: '-', icon: 'Trophy' }
+])
 const currentStats = computed(() => {
-  if (currentRole.value === 'Admin') return adminStats
-  if (currentRole.value === 'Teacher') return teacherStats
-  return userStats
+  if (currentRole.value === 'Admin') return adminStats.value
+  if (currentRole.value === 'Teacher') return teacherStats.value
+  return userStats.value
 })
 
 // ── Role-aware shortcuts ────────────────────────────────
@@ -190,10 +191,84 @@ const currentShortcuts = computed(() => {
 })
 
 const chartTitle = computed(() => {
-  if (currentRole.value === 'Admin') return '用户增长趋势 (近6个月)'
-  if (currentRole.value === 'Teacher') return '内容发布与互动趋势 (近6个月)'
+  if (currentRole.value === 'Admin') return '平台学习时长趋势 (近6个月)'
+  if (currentRole.value === 'Teacher') return '平台学习时长与成绩趋势 (近6个月)'
   return '个人学习趋势 (本周)'
 })
+
+const applySummary = (summary: any) => {
+  if (!summary) return
+  if (currentRole.value === 'Admin') {
+    adminStats.value = [
+      { title: '总注册用户数', value: String(summary.totalUsers ?? '-'), icon: 'User' },
+      { title: '今日活跃用户', value: String(summary.todayActiveUsers ?? '-'), icon: 'TrendCharts' },
+      { title: '学习记录总数', value: String(summary.totalRecords ?? '-'), icon: 'Collection' },
+      { title: '覆盖模块数', value: String(summary.moduleTypes ?? '-'), icon: 'ChatDotRound' }
+    ]
+  } else if (currentRole.value === 'User') {
+    userStats.value = [
+      { title: '已学词汇', value: String(summary.masteredVocab ?? 0), icon: 'Collection' },
+      { title: '完成文献', value: String(summary.litCompleted ?? 0), icon: 'Document' },
+      { title: '学习时长(H)', value: String(summary.totalDurationHours ?? 0), icon: 'Clock' },
+      { title: '今日自测', value: summary.todayScore != null ? `${summary.todayScore}/${summary.todayScoreMax}` : '暂无', icon: 'Trophy' }
+    ]
+  }
+}
+
+const buildChartOption = (data: any) => {
+  const durationTrend = data?.durationTrend ?? { categories: [], values: [] }
+  const scoreTrend = data?.scoreTrend ?? { categories: [], values: [] }
+  const isGlobal = currentRole.value === 'Admin' || currentRole.value === 'Teacher'
+
+  if (isGlobal) {
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['学习时长(小时)', '平均成绩'] },
+      color: ['#409eff', '#67c23a'],
+      xAxis: { type: 'category', data: durationTrend.categories },
+      yAxis: [
+        { type: 'value', name: '小时' },
+        { type: 'value', name: '分数', min: 0, max: 100 }
+      ],
+      series: [
+        { name: '学习时长(小时)', data: durationTrend.values, type: 'line', smooth: true, areaStyle: {} },
+        { name: '平均成绩', data: scoreTrend.values, type: 'line', smooth: true, yAxisIndex: 1 }
+      ]
+    }
+  }
+
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['学习时长(分钟)', '平均成绩'] },
+    color: ['#409eff', '#67c23a'],
+    xAxis: { type: 'category', data: durationTrend.categories },
+    yAxis: [
+      { type: 'value', name: '分钟' },
+      { type: 'value', name: '分数', min: 0, max: 100 }
+    ],
+    series: [
+      { name: '学习时长(分钟)', data: durationTrend.values, type: 'line', smooth: true, areaStyle: {} },
+      { name: '平均成绩', data: scoreTrend.values, type: 'line', smooth: true, yAxisIndex: 1 }
+    ]
+  }
+}
+
+const fetchStats = async () => {
+  const scope = (currentRole.value === 'Admin' || currentRole.value === 'Teacher') ? 'global' : 'personal'
+  try {
+    const res = await axios.get('/api/stats', { params: { scope } })
+    if (res.data.code === 200) {
+      statsData.value = res.data.data
+      applySummary(res.data.data.summary)
+      if (chartRef.value) {
+        const chart = echarts.init(chartRef.value)
+        chart.setOption(buildChartOption(res.data.data))
+      }
+    }
+  } catch {
+    // keep defaults on error
+  }
+}
 
 // ── Permission matrix (for Admin panel) ──────────────────
 const permMatrix = [
@@ -230,39 +305,7 @@ const fetchAiAdvice = async () => {
 
 onMounted(() => {
   if (currentRole.value === 'User') fetchAiAdvice()
-  if (chartRef.value) {
-    const chart = echarts.init(chartRef.value)
-    let option: any
-    if (currentRole.value === 'Admin') {
-      option = {
-        tooltip: { trigger: 'axis' },
-        color: ['#f56c6c'],
-        xAxis: { type: 'category', data: ['一月', '二月', '三月', '四月', '五月', '六月'] },
-        yAxis: { type: 'value' },
-        series: [{ name: '新增用户', data: [820, 932, 901, 1034, 1290, 1530], type: 'line', smooth: true, areaStyle: {} }]
-      }
-    } else if (currentRole.value === 'Teacher') {
-      option = {
-        tooltip: { trigger: 'axis' },
-        color: ['#e6a23c', '#409eff'],
-        legend: { data: ['发布内容', '学生互动'] },
-        xAxis: { type: 'category', data: ['一月', '二月', '三月', '四月', '五月', '六月'] },
-        yAxis: { type: 'value' },
-        series: [
-          { name: '发布内容', data: [5, 8, 6, 10, 9, 12], type: 'bar' },
-          { name: '学生互动', data: [30, 55, 41, 68, 72, 90], type: 'line', smooth: true }
-        ]
-      }
-    } else {
-      option = {
-        color: ['#409eff'],
-        xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
-        yAxis: { type: 'value' },
-        series: [{ data: [30, 45, 60, 20, 80, 100, 50], type: 'line', smooth: true, areaStyle: {} }]
-      }
-    }
-    chart.setOption(option)
-  }
+  fetchStats()
 })
 </script>
 

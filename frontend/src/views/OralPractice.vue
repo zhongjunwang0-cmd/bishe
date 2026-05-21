@@ -85,10 +85,10 @@ const handleStart = async () => {
   try {
     const res = await axios.post('/api/oral/generate')
     if (res.data.code === 200) {
-      ElMessage.success('生成成功！')
+      ElMessage.success(res.data.message || '生成成功！')
       fetchOral()
     } else {
-      ElMessage.error(res.data.msg || '生成失败')
+      ElMessage.warning(res.data.message || '生成失败')
     }
   } catch (error) {
     ElMessage.error('无法连接到服务器')
@@ -124,7 +124,7 @@ const stopAndEvaluate = async () => {
         fetchOral()
         
         try {
-          await axios.post('/api/record/add', { type: '口语练习', targetId: currentTest.value.id, duration: 60 })
+          await axios.post('/api/record/add', { type: '口语练习', targetId: currentTest.value.id, duration: 60, score: mockScore })
         } catch (e) {}
 
       } else {

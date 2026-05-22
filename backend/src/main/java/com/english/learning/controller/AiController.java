@@ -2,6 +2,7 @@ package com.english.learning.controller;
 
 import com.english.learning.common.Result;
 import com.english.learning.dto.AiChatResult;
+import com.english.learning.dto.KtRecommendDto;
 import com.english.learning.entity.User;
 import com.english.learning.service.AiService;
 import org.apache.shiro.SecurityUtils;
@@ -36,5 +37,12 @@ public class AiController {
         }
 
         return Result.success(response);
+    }
+
+    @GetMapping("/recommend")
+    public Result<KtRecommendDto> getRecommend() {
+        User currentUser = (User) SecurityUtils.getSubject().getPrincipal();
+        Long userId = currentUser != null ? currentUser.getId() : -1L;
+        return Result.success(aiService.getLearningRecommend(userId));
     }
 }

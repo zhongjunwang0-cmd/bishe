@@ -40,4 +40,14 @@ public final class LearningRecordTypeUtil {
         String normalized = normalize(type);
         return TYPE_ZH.getOrDefault(normalized, normalized);
     }
+
+    /** Map record type to KT model module (VOCAB/GRAMMAR/READING/LISTENING/ORAL). */
+    public static String toKtModule(String type) {
+        String normalized = normalize(type);
+        return switch (normalized) {
+            case "VOCAB", "GRAMMAR", "READING", "LISTENING", "ORAL" -> normalized;
+            case "CLOZE", "LIT" -> "READING";
+            default -> null;
+        };
+    }
 }

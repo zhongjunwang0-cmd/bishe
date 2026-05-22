@@ -26,6 +26,12 @@ mybatis-plus:
 server:
   port: 8080
 
+# Python ai-service (EdNet KT model, grammar, pronunciation)
+ai:
+  service:
+    enabled: true
+    base-url: ${AI_SERVICE_URL:http://localhost:8000}
+
 logging:
   level:
     com.english.learning: debug

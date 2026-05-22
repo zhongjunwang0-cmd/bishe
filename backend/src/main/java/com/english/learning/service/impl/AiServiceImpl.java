@@ -2,18 +2,25 @@ package com.english.learning.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.english.learning.entity.LearningRecord;
+import com.english.learning.service.AiModelClient;
 import com.english.learning.service.AiService;
 import com.english.learning.service.ExternalLlmService;
 import com.english.learning.service.LearningRecordService;
 import com.english.learning.service.SystemConfigService;
 import com.english.learning.dto.AiChatResult;
 import com.english.learning.dto.AiIntegrationConfig;
+import com.english.learning.dto.KtRecommendDto;
+import com.english.learning.dto.LearningEventDto;
+import com.english.learning.dto.ModuleStatDto;
 import com.english.learning.util.EnglishWritingAnalyzer;
 import com.english.learning.util.LearningRecordTypeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,6 +45,147 @@ public class AiServiceImpl implements AiService {
 
     @Autowired
     private ExternalLlmService externalLlmService;
+
+    @Autowired
+    private AiModelClient aiModelClient;
+
+    private static final List<String> KT_MODULES = List.of(
+            "VOCAB", "GRAMMAR", "READING", "LISTENING", "ORAL");
+
+    // ─── EdNet 模型推荐（学习记录 → ai-service） ───────────────────────────────
+    @Override
+    public KtRecommendDto getLearningRecommend(Long userId) {
+        LocalDateTime since = LocalDateTime.now().minusDays(30);
+        QueryWrapper<LearningRecord> qw = new QueryWrapper<>();
+        qw.eq("user_id", userId).ge("create_time", since);
+        List<LearningRecord> records = learningRecordService.list(qw);
+
+        List<ModuleStatDto> moduleStats = buildModuleStats(records);
+        List<LearningEventDto> events = buildLearningEvents(records);
+        KtRecommendDto result = aiModelClient.recommend(moduleStats, events, String.valueOf(userId));
+
+        if (result == null) {
+            result = buildRuleRecommend(moduleStats);
+        } else {
+            result.setWeakModules(result.getWeakModules().stream()
+                    .map(LearningRecordTypeUtil::toDisplayName)
+                    .distinct()
+                    .toList());
+            result.setAdvice(buildAdviceText(records, result));
+        }
+        return result;
+    }
+
+    private List<ModuleStatDto> buildModuleStats(List<LearningRecord> records) {
+        Map<String, List<LearningRecord>> byModule = new HashMap<>();
+        for (LearningRecord r : records) {
+            String mod = LearningRecordTypeUtil.toKtModule(r.getType());
+            if (mod == null) {
+                continue;
+            }
+            byModule.computeIfAbsent(mod, k -> new ArrayList<>()).add(r);
+        }
+
+        List<ModuleStatDto> stats = new ArrayList<>();
+        for (String mod : KT_MODULES) {
+            List<LearningRecord> list = byModule.getOrDefault(mod, List.of());
+            ModuleStatDto dto = new ModuleStatDto();
+            dto.setModule(mod);
+            dto.setAttempts(list.size());
+            if (list.isEmpty()) {
+                dto.setAccuracy(0.5);
+                dto.setAvgElapsed(30.0);
+            } else {
+                double accSum = 0;
+                int accCount = 0;
+                double elapsedSum = 0;
+                for (LearningRecord r : list) {
+                    if (r.getScore() != null) {
+                        accSum += Math.min(100, Math.max(0, r.getScore())) / 100.0;
+                        accCount++;
+                    }
+                    elapsedSum += r.getDuration() != null ? r.getDuration() : 60;
+                }
+                dto.setAccuracy(accCount > 0 ? accSum / accCount : 0.5);
+                dto.setAvgElapsed(elapsedSum / list.size());
+            }
+            stats.add(dto);
+        }
+        return stats;
+    }
+
+    private List<LearningEventDto> buildLearningEvents(List<LearningRecord> records) {
+        return records.stream()
+                .sorted(Comparator.comparing(LearningRecord::getCreateTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(r -> {
+                    String mod = LearningRecordTypeUtil.toKtModule(r.getType());
+                    if (mod == null) {
+                        return null;
+                    }
+                    LearningEventDto ev = new LearningEventDto();
+                    ev.setModule(mod);
+                    boolean correct = r.getScore() != null && r.getScore() >= 60;
+                    ev.setCorrect(correct);
+                    return ev;
+                })
+                .filter(e -> e != null)
+                .limit(150)
+                .toList();
+    }
+
+    private KtRecommendDto buildRuleRecommend(List<ModuleStatDto> moduleStats) {
+        KtRecommendDto dto = new KtRecommendDto();
+        dto.setSource("rule_fallback");
+
+        List<ModuleStatDto> sorted = moduleStats.stream()
+                .sorted(Comparator
+                        .comparingDouble(ModuleStatDto::getAccuracy)
+                        .thenComparingInt(ModuleStatDto::getAttempts))
+                .toList();
+
+        List<String> weakKeys = sorted.stream().limit(2).map(ModuleStatDto::getModule).toList();
+        List<String> weakDisplay = weakKeys.stream()
+                .map(LearningRecordTypeUtil::toDisplayName)
+                .toList();
+        dto.setWeakModules(weakDisplay);
+
+        Map<String, String> taskMap = Map.of(
+                "VOCAB", "词汇复习 15 个单词",
+                "GRAMMAR", "语法测试 1 套",
+                "READING", "阅读理解 1 篇",
+                "LISTENING", "听力训练 1 套",
+                "ORAL", "口语录音练习 1 次");
+        List<String> tasks = new ArrayList<>();
+        for (String key : weakKeys) {
+            tasks.add(taskMap.getOrDefault(key, "综合练习"));
+        }
+        dto.setTodayTasks(tasks);
+
+        double mastery = moduleStats.stream()
+                .mapToDouble(ModuleStatDto::getAccuracy)
+                .average()
+                .orElse(0.5);
+        dto.setMastery(Math.round(mastery * 1000) / 1000.0);
+        dto.setAdvice("基于学习记录的规则推荐（AI 模型服务未连接时可正常展示）。");
+        return dto;
+    }
+
+    private String buildAdviceText(List<LearningRecord> records, KtRecommendDto result) {
+        StringBuilder sb = new StringBuilder(
+                "dkt_model".equals(result.getSource()) ? "【DKT 深度知识追踪】" : "【学习推荐】 ");
+        if (records.isEmpty()) {
+            sb.append("您还没有学习记录，请先完成任意模块练习，系统将自动优化推荐。");
+            return sb.toString();
+        }
+        sb.append("综合掌握度约 ").append(Math.round(result.getMastery() * 100)).append("%。");
+        if (!result.getWeakModules().isEmpty()) {
+            sb.append(" 建议优先加强：")
+              .append(String.join("、", result.getWeakModules()))
+              .append("。");
+        }
+        return sb.toString();
+    }
 
     // ─── 个性化建议（基于真实学习记录） ─────────────────────────────────────────
     @Override

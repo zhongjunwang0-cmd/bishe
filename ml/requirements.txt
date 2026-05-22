@@ -1,0 +1,13 @@
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+tqdm>=4.66.0
+python-dotenv>=1.0.0
+# DKT training
+torch>=2.0.0
+# transformers>=4.36.0
+# datasets>=2.16.0
+# openai-whisper>=20231117
+# jiwer>=3.0.0

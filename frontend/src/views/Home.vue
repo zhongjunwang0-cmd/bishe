@@ -89,15 +89,46 @@
 
         <!-- User: AI assistant panel -->
         <el-card shadow="hover" v-else>
-          <template #header>AI 学习助手</template>
-          <div class="ai-box">
-            <p>基于您的学习记录，AI 建议：</p>
-            <el-skeleton :rows="3" animated v-if="loadingAdvice" />
-            <div v-else>
-              <el-tag type="success" style="margin-bottom: 10px;">智能学习分析</el-tag>
-              <p style="color: #666; font-size: 14px; line-height: 1.6;">{{ aiAdvice }}</p>
+          <template #header>
+            <div class="recommend-header">
+              <span>AI 学习助手</span>
+              <el-tag v-if="recommendSource === 'dkt_model'" type="success" size="small">DKT 模型</el-tag>
+              <el-tag v-else-if="recommendSource === 'ml_model'" type="success" size="small">ML 模型</el-tag>
+              <el-tag v-else-if="recommendSource" type="info" size="small">规则推荐</el-tag>
             </div>
-            <el-button type="primary" style="margin-top: 20px;" @click="$router.push('/ai-tutoring')" plain>进入AI辅导</el-button>
+          </template>
+          <div class="ai-box">
+            <el-skeleton :rows="4" animated v-if="loadingRecommend" />
+            <div v-else>
+              <div class="mastery-row">
+                <span class="mastery-label">综合掌握度</span>
+                <el-progress
+                  :percentage="Math.round((recommend.mastery || 0) * 100)"
+                  :stroke-width="10"
+                  style="flex: 1; margin-left: 12px;"
+                />
+              </div>
+              <p v-if="recommend.advice" class="advice-text">{{ recommend.advice }}</p>
+              <div v-if="recommend.weakModules?.length" class="weak-section">
+                <div class="section-title">今日薄弱模块</div>
+                <el-tag
+                  v-for="m in recommend.weakModules"
+                  :key="m"
+                  type="warning"
+                  style="margin: 0 6px 6px 0;"
+                >{{ m }}</el-tag>
+              </div>
+              <div v-if="recommend.todayTasks?.length" class="task-section">
+                <div class="section-title">推荐任务</div>
+                <ul class="task-list">
+                  <li v-for="(task, i) in recommend.todayTasks" :key="i">{{ task }}</li>
+                </ul>
+              </div>
+              <p v-if="!recommend.weakModules?.length && !recommend.todayTasks?.length" class="advice-text">
+                完成任意模块练习后，系统将基于学习记录生成个性化推荐。
+              </p>
+            </div>
+            <el-button type="primary" style="margin-top: 16px;" @click="$router.push('/ai-tutoring')" plain>进入AI辅导</el-button>
           </div>
         </el-card>
       </el-col>
@@ -115,8 +146,21 @@ const router = useRouter()
 
 const currentRole = inject<any>('currentRole', ref('User'))
 const username = ref(localStorage.getItem('username') || '用户')
-const aiAdvice = ref('')
-const loadingAdvice = ref(true)
+const loadingRecommend = ref(true)
+const recommendSource = ref('')
+const recommend = ref<{
+  weakModules: string[]
+  todayTasks: string[]
+  mastery: number
+  advice: string
+  source: string
+}>({
+  weakModules: [],
+  todayTasks: [],
+  mastery: 0,
+  advice: '',
+  source: ''
+})
 const chartRef = ref<HTMLElement | null>(null)
 const statsData = ref<any>(null)
 
@@ -297,21 +341,30 @@ const goTeachingManagement = () => {
 }
 
 // ── Chart and data fetching ───────────────────────────────
-const fetchAiAdvice = async () => {
+const fetchRecommend = async () => {
+  loadingRecommend.value = true
   try {
-    const res = await axios.post('/api/ai/advice', {})
-    if (res.data.code === 200) {
-      aiAdvice.value = res.data.data.advice
+    const res = await axios.get('/api/ai/recommend')
+    if (res.data.code === 200 && res.data.data) {
+      const d = res.data.data
+      recommend.value = {
+        weakModules: d.weakModules || [],
+        todayTasks: d.todayTasks || [],
+        mastery: d.mastery ?? 0,
+        advice: d.advice || '',
+        source: d.source || ''
+      }
+      recommendSource.value = d.source || ''
     }
-  } catch (error) {
-    aiAdvice.value = '无法获取 AI 建议，请稍后再试。'
+  } catch {
+    recommend.value.advice = '无法获取学习推荐，请确认后端与 AI 服务已启动。'
   } finally {
-    loadingAdvice.value = false
+    loadingRecommend.value = false
   }
 }
 
 onMounted(() => {
-  if (currentRole.value === 'User') fetchAiAdvice()
+  if (currentRole.value === 'User') fetchRecommend()
   fetchStats()
 })
 </script>
@@ -343,4 +396,11 @@ onMounted(() => {
 .t-stat { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
 .t-label { font-size: 13px; color: #606266; }
 .ai-box { padding: 10px; }
+.recommend-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mastery-row { display: flex; align-items: center; margin-bottom: 12px; }
+.mastery-label { font-size: 13px; color: #606266; white-space: nowrap; }
+.advice-text { color: #666; font-size: 14px; line-height: 1.6; margin: 0 0 12px; }
+.section-title { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 8px; }
+.task-list { margin: 0; padding-left: 18px; color: #606266; font-size: 13px; line-height: 1.8; }
+.weak-section, .task-section { margin-bottom: 12px; }
 </style>

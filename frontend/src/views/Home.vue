@@ -84,7 +84,7 @@
               <el-tag :type="s.type" size="small">{{ s.value }}</el-tag>
             </div>
           </div>
-          <el-button type="primary" style="margin-top:20px; width:100%;" @click="$router.push('/admin/tests')" plain>进入教学管理</el-button>
+          <el-button type="primary" style="margin-top:20px; width:100%;" @click="goTeachingManagement" plain>进入教学管理</el-button>
         </el-card>
 
         <!-- User: AI assistant panel -->
@@ -107,8 +107,11 @@
 
 <script setup lang="ts">
 import { ref, computed, inject, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import axios from 'axios'
+
+const router = useRouter()
 
 const currentRole = inject<any>('currentRole', ref('User'))
 const username = ref(localStorage.getItem('username') || '用户')
@@ -288,6 +291,10 @@ const teacherStatus = [
   { label: '学生消息', value: '5 条', type: 'danger' },
   { label: '本月评分', value: '4.9 ⭐', type: 'info' }
 ]
+
+const goTeachingManagement = () => {
+  router.push('/admin/teaching')
+}
 
 // ── Chart and data fetching ───────────────────────────────
 const fetchAiAdvice = async () => {

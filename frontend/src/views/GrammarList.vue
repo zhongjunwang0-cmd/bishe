@@ -45,8 +45,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, inject, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+
+const router = useRouter()
 
 const currentRole = inject<any>('currentRole', ref('User'))
 const activeNames = ref<any[]>([])
@@ -105,7 +108,7 @@ const submitForm = async () => {
 }
 
 const handleGrammarTest = (item: any) => {
-  ElMessage.success(`正在跳转至【${item.title}】的测试题库...`)
+  router.push({ path: '/grammar/test', query: { id: String(item.id) } })
 }
 
 const handleDelete = (item: any) => {

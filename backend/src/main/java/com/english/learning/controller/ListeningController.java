@@ -2,10 +2,14 @@ package com.english.learning.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.english.learning.common.Result;
+import com.english.learning.dto.ReplaceAudioRequest;
 import com.english.learning.dto.SubmitAnswersRequest;
 import com.english.learning.entity.Listening;
+import com.english.learning.entity.QuestionBank;
 import com.english.learning.service.ListeningService;
+import com.english.learning.service.QuestionBankService;
 import com.english.learning.service.QuestionGenerateService;
+import com.english.learning.service.UploadFileService;
 import com.english.learning.util.JsonUtil;
 import com.english.learning.util.ScoreUtil;
 import org.apache.shiro.authz.annotation.Logical;
@@ -16,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +40,12 @@ public class ListeningController {
 
     @Autowired
     private QuestionGenerateService questionGenerateService;
+
+    @Autowired
+    private QuestionBankService questionBankService;
+
+    @Autowired
+    private UploadFileService uploadFileService;
 
     @GetMapping("/list")
     public Result<List<Listening>> list() {
@@ -111,6 +122,42 @@ public class ListeningController {
         return Result.success(listening);
     }
 
+    @PutMapping("/{id}/audio")
+    @RequiresRoles(value = {"ADMIN", "TEACHER"}, logical = Logical.OR)
+    public Result<String> replaceAudio(@PathVariable Long id, @RequestBody ReplaceAudioRequest request) {
+        Listening existing = listeningService.getById(id);
+        if (existing == null) {
+            return Result.error("听力材料不存在");
+        }
+        if (request.getAudioUrl() == null || request.getAudioUrl().isBlank()) {
+            return Result.error("请上传新的音频文件");
+        }
+
+        String oldAudioUrl = existing.getAudioUrl();
+        String newAudioUrl = request.getAudioUrl().trim();
+        existing.setAudioUrl(newAudioUrl);
+        if (request.getDuration() != null && !request.getDuration().isBlank()) {
+            existing.setDuration(request.getDuration().trim());
+        }
+        listeningService.updateWithEvict(existing);
+
+        if (existing.getBankId() != null) {
+            QuestionBank bank = questionBankService.getById(existing.getBankId());
+            if (bank != null) {
+                bank.setAudioUrl(existing.getAudioUrl());
+                bank.setDuration(existing.getDuration());
+                bank.setUpdateTime(LocalDateTime.now());
+                questionBankService.updateById(bank);
+            }
+        }
+
+        if (!newAudioUrl.equals(oldAudioUrl)) {
+            uploadFileService.deleteLocalUploadIfUnreferenced(oldAudioUrl);
+        }
+
+        return Result.success("音频替换成功");
+    }
+
     @DeleteMapping("/{id}")
     @RequiresRoles(value = {"ADMIN", "TEACHER"}, logical = Logical.OR)
     public Result<String> delete(@PathVariable Long id) {
@@ -118,7 +165,9 @@ public class ListeningController {
         if (existing == null) {
             return Result.error("听力材料不存在");
         }
-        listeningService.removeById(id);
+        String audioUrl = existing.getAudioUrl();
+        listeningService.removeWithEvict(id);
+        uploadFileService.deleteLocalUploadIfUnreferenced(audioUrl);
         return Result.success("删除成功");
     }
 

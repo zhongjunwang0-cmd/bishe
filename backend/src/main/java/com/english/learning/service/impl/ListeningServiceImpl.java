@@ -27,6 +27,12 @@ public class ListeningServiceImpl extends ServiceImpl<ListeningMapper, Listening
 
     @Override
     @CacheEvict(value = "listeningList", allEntries = true)
+    public boolean updateWithEvict(Listening listening) {
+        return this.updateById(listening);
+    }
+
+    @Override
+    @CacheEvict(value = "listeningList", allEntries = true)
     public boolean removeWithEvict(Long id) {
         return this.removeById(id);
     }

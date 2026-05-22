@@ -6,6 +6,7 @@ import com.english.learning.dto.SubmitAnswersRequest;
 import com.english.learning.entity.Cloze;
 import com.english.learning.service.ClozeService;
 import com.english.learning.service.QuestionGenerateService;
+import com.english.learning.util.ClozeLegacyParser;
 import com.english.learning.util.JsonUtil;
 import com.english.learning.util.ScoreUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ public class ClozeController {
         if (cloze == null) {
             return Result.error("测试不存在");
         }
+        ensureStructured(cloze);
         cloze.setQuestions(JsonUtil.parse(cloze.getQuestionsJson()));
         return Result.success(cloze);
     }
@@ -48,7 +50,23 @@ public class ClozeController {
         if (cloze == null) {
             return Result.error("测试不存在");
         }
+        ensureStructured(cloze);
         return Result.success(JsonUtil.parse(cloze.getAnswersJson()));
+    }
+
+    private void ensureStructured(Cloze cloze) {
+        if (cloze.getQuestionsJson() != null && !cloze.getQuestionsJson().isBlank()) {
+            return;
+        }
+        ClozeLegacyParser.Parsed parsed = ClozeLegacyParser.parse(cloze.getContent());
+        if (parsed == null) {
+            return;
+        }
+        cloze.setContent(parsed.getContent());
+        cloze.setQuestionsJson(parsed.getQuestionsJson());
+        cloze.setAnswersJson(parsed.getAnswersJson());
+        cloze.setBlanksCount(parsed.getBlankCount());
+        clozeService.updateById(cloze);
     }
 
     @PostMapping("/generate")
@@ -66,6 +84,7 @@ public class ClozeController {
         if (existing == null) {
             return Result.error("测试不存在");
         }
+        ensureStructured(existing);
         if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
             return Result.error("请提交答案");
         }

@@ -27,6 +27,11 @@ const routes = [
                 component: () => import('../views/GrammarList.vue')
             },
             {
+                path: 'grammar/test',
+                name: 'GrammarTest',
+                component: () => import('../views/GrammarTest.vue')
+            },
+            {
                 path: 'literature',
                 name: 'Literature',
                 component: () => import('../views/LiteratureList.vue')
@@ -73,17 +78,22 @@ const routes = [
             },
             // ── Teacher + Admin ──
             {
+                path: 'admin/teaching',
+                name: 'TeachingManagement',
+                meta: { roles: ['Admin', 'Teacher'] },
+                component: () => import('../views/TeachingManagement.vue')
+            },
+            {
                 path: 'admin/tests',
                 name: 'TestManagement',
                 meta: { roles: ['Admin', 'Teacher'] },
                 component: () => import('../views/TestManagement.vue')
             },
-            // ── Admin only ──
             {
-                path: 'admin',
-                name: 'AdminDashboard',
-                meta: { roles: ['Admin'] },
-                component: () => import('../views/AdminDashboard.vue')
+                path: 'admin/vocab',
+                name: 'VocabManagement',
+                meta: { roles: ['Admin', 'Teacher'] },
+                component: () => import('../views/VocabList.vue')
             },
             {
                 path: 'admin/users',
@@ -96,12 +106,6 @@ const routes = [
                 name: 'SystemSettings',
                 meta: { roles: ['Admin'] },
                 component: () => import('../views/SystemSettings.vue')
-            },
-            {
-                path: 'admin/vocab',
-                name: 'VocabManagement',
-                meta: { roles: ['Admin', 'Teacher'] },
-                component: () => import('../views/VocabList.vue')
             },
             {
                 path: 'admin/grammar',
@@ -132,6 +136,13 @@ const routes = [
                 name: 'ToolsIntegration',
                 meta: { roles: ['Admin'] },
                 component: () => import('../views/ToolsIntegration.vue')
+            },
+            // ── Admin only ──
+            {
+                path: 'admin',
+                name: 'AdminDashboard',
+                meta: { roles: ['Admin'] },
+                component: () => import('../views/AdminDashboard.vue')
             }
         ]
     }

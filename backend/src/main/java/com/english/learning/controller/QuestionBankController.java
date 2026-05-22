@@ -3,6 +3,7 @@ package com.english.learning.controller;
 import com.english.learning.common.Result;
 import com.english.learning.entity.QuestionBank;
 import com.english.learning.service.QuestionBankService;
+import com.english.learning.service.UploadFileService;
 import org.apache.shiro.authz.annotation.Logical;
 import org.apache.shiro.authz.annotation.RequiresRoles;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,9 @@ public class QuestionBankController {
 
     @Autowired
     private QuestionBankService questionBankService;
+
+    @Autowired
+    private UploadFileService uploadFileService;
 
     @GetMapping("/list")
     public Result<List<QuestionBank>> list(@RequestParam(required = false) String moduleType) {
@@ -55,15 +59,25 @@ public class QuestionBankController {
         if (existing == null) {
             return Result.error("题库不存在");
         }
+        String oldAudioUrl = existing.getAudioUrl();
         bank.setId(id);
         bank.setUpdateTime(LocalDateTime.now());
         questionBankService.updateById(bank);
+        if (bank.getAudioUrl() != null && !bank.getAudioUrl().equals(oldAudioUrl)) {
+            uploadFileService.deleteLocalUploadIfUnreferenced(oldAudioUrl);
+        }
         return Result.success("题库更新成功");
     }
 
     @DeleteMapping("/{id}")
     public Result<String> delete(@PathVariable Long id) {
+        QuestionBank existing = questionBankService.getById(id);
+        if (existing == null) {
+            return Result.error("题库不存在");
+        }
+        String audioUrl = existing.getAudioUrl();
         questionBankService.removeById(id);
+        uploadFileService.deleteLocalUploadIfUnreferenced(audioUrl);
         return Result.success("题库删除成功");
     }
 

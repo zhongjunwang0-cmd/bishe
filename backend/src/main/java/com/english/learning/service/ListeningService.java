@@ -7,5 +7,6 @@ import java.util.List;
 public interface ListeningService extends IService<Listening> {
     List<Listening> listAllCached();
     boolean saveWithEvict(Listening listening);
+    boolean updateWithEvict(Listening listening);
     boolean removeWithEvict(Long id);
 }

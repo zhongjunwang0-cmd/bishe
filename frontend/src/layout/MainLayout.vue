@@ -75,6 +75,10 @@
             <el-icon><EditPen /></el-icon>
             <span>教学管理</span>
           </template>
+          <el-menu-item index="/admin/teaching">
+            <el-icon><Reading /></el-icon>
+            <span>教学管理首页</span>
+          </el-menu-item>
           <el-menu-item index="/admin/vocab" v-if="currentRole === 'Teacher' || currentRole === 'Admin'">
             <el-icon><Collection /></el-icon>
             <span>词汇内容管理</span>
@@ -151,6 +155,7 @@
 import { ref, computed, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { preserveSavedLoginOnClear } from '../utils/authStorage'
 
 const router = useRouter()
 
@@ -180,7 +185,7 @@ const handleLogout = async () => {
   try {
     await axios.get('/api/user/logout')
   } catch (e) {}
-  localStorage.clear()
+  preserveSavedLoginOnClear()
   router.push('/login')
 }
 </script>

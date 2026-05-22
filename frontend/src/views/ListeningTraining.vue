@@ -46,7 +46,7 @@
 
         </el-table-column>
 
-        <el-table-column label="操作" :width="currentRole !== 'User' ? 280 : 220" fixed="right">
+        <el-table-column label="操作" :width="currentRole !== 'User' ? 340 : 220" fixed="right">
 
           <template #default="{ row }">
 
@@ -60,6 +60,8 @@
 
             <el-button link type="success" @click="handleViewKey(row)">查看解析</el-button>
 
+            <el-button v-if="currentRole !== 'User'" link type="warning" @click="openReplaceDialog(row)">替换音频</el-button>
+
             <el-button v-if="currentRole !== 'User'" link type="danger" @click="handleDelete(row)">删除</el-button>
 
           </template>
@@ -72,13 +74,13 @@
 
 
 
-    <el-dialog v-model="playDialogVisible" :title="currentTest?.title || '听力播放'" width="40%" top="15vh">
+    <el-dialog v-model="playDialogVisible" :title="currentTest?.title || '听力播放'" width="40%" top="15vh" destroy-on-close @closed="stopPlayAudio">
 
       <div v-if="currentTest" class="audio-content">
 
         <el-alert title="请仔细听录音，您可以反复播放。" type="info" show-icon :closable="false" style="margin-bottom: 20px;" />
 
-        <audio v-if="currentTest.audioUrl" controls :src="currentTest.audioUrl" style="width: 100%;"></audio>
+        <audio v-if="currentTest.audioUrl" ref="playAudioRef" controls :src="currentTest.audioUrl" style="width: 100%;"></audio>
 
         <el-empty v-else description="暂无音频，请查看原文" />
 
@@ -88,7 +90,7 @@
 
       <template #footer>
 
-        <el-button type="primary" @click="playDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="closePlayDialog">关闭</el-button>
 
       </template>
 
@@ -96,13 +98,13 @@
 
 
 
-    <el-dialog v-model="testDialogVisible" :title="currentTest?.title || '听力测试'" width="60%" top="5vh">
+    <el-dialog v-model="testDialogVisible" :title="currentTest?.title || '听力测试'" width="60%" top="5vh" destroy-on-close @closed="stopTestAudio">
 
       <div v-if="currentTest" class="test-content" v-loading="detailLoading">
 
         <el-alert title="注意：您可以边听边作答。" type="warning" show-icon :closable="false" style="margin-bottom: 15px;" />
 
-        <audio v-if="currentTest.audioUrl" controls :src="currentTest.audioUrl" style="width: 100%; margin-bottom: 20px;"></audio>
+        <audio v-if="currentTest.audioUrl" ref="testAudioRef" controls :src="currentTest.audioUrl" style="width: 100%; margin-bottom: 20px;"></audio>
 
         <div class="questions-box" v-if="questions.length">
 
@@ -132,7 +134,7 @@
 
       <template #footer>
 
-        <el-button @click="testDialogVisible = false">取消</el-button>
+        <el-button @click="closeTestDialog">取消</el-button>
 
         <el-button type="primary" @click="submitTest" :loading="submitting" :disabled="!questions.length">提交答案</el-button>
 
@@ -332,6 +334,92 @@
 
     </el-dialog>
 
+
+
+    <el-dialog v-model="replaceDialogVisible" title="替换音频" width="560px" top="12vh" destroy-on-close>
+
+      <div v-if="replaceTarget" class="replace-audio-content">
+
+        <el-alert
+
+          title="上传新音频后将替换当前听力材料的音频文件，题目与解析保持不变。"
+
+          type="info"
+
+          show-icon
+
+          :closable="false"
+
+          style="margin-bottom: 16px;"
+
+        />
+
+        <p class="replace-title"><strong>材料：</strong>{{ replaceTarget.title }}</p>
+
+        <p v-if="replaceTarget.duration" class="replace-meta"><strong>当前时长：</strong>{{ replaceTarget.duration }}</p>
+
+        <div v-if="replaceTarget.audioUrl" class="replace-current-audio">
+
+          <p class="replace-meta"><strong>当前音频：</strong></p>
+
+          <audio controls :src="replaceTarget.audioUrl" class="audio-preview" />
+
+        </div>
+
+        <el-divider />
+
+        <el-form label-width="100px">
+
+          <el-form-item label="新音频文件">
+
+            <div class="audio-url-row">
+
+              <el-input v-model="replaceForm.audioUrl" placeholder="上传新音频后自动填充地址" readonly />
+
+              <el-upload
+
+                action="#"
+
+                :auto-upload="false"
+
+                :show-file-list="false"
+
+                accept=".mp3,.wav,.m4a,.ogg,audio/*"
+
+                :on-change="handleReplaceAudioUpload"
+
+              >
+
+                <el-button type="primary" :loading="replaceAudioUploading">选择并上传</el-button>
+
+              </el-upload>
+
+            </div>
+
+            <audio v-if="replaceForm.audioUrl" controls :src="replaceForm.audioUrl" class="audio-preview" />
+
+          </el-form-item>
+
+          <el-form-item label="时长">
+
+            <el-input v-model="replaceForm.duration" placeholder="上传音频后自动识别，也可手动填写如 04:15" />
+
+          </el-form-item>
+
+        </el-form>
+
+      </div>
+
+      <template #footer>
+
+        <el-button @click="replaceDialogVisible = false">取消</el-button>
+
+        <el-button type="primary" @click="submitReplaceAudio" :loading="replaceSaving">确认替换</el-button>
+
+      </template>
+
+    </el-dialog>
+
   </div>
 
 </template>
@@ -340,7 +428,7 @@
 
 <script setup lang="ts">
 
-import { ref, reactive, inject, onMounted } from 'vue'
+import { ref, reactive, inject, onMounted, onBeforeUnmount, watch } from 'vue'
 
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -380,15 +468,27 @@ const playDialogVisible = ref(false)
 
 const testDialogVisible = ref(false)
 
+const playAudioRef = ref<HTMLAudioElement | null>(null)
+
+const testAudioRef = ref<HTMLAudioElement | null>(null)
+
 const keyDialogVisible = ref(false)
 
 const uploadDialogVisible = ref(false)
 
+const replaceDialogVisible = ref(false)
+
 const audioUploading = ref(false)
+
+const replaceAudioUploading = ref(false)
 
 const uploadSaving = ref(false)
 
+const replaceSaving = ref(false)
+
 const currentTest = ref<any>(null)
+
+const replaceTarget = ref<any>(null)
 
 const questions = ref<any[]>([])
 
@@ -415,6 +515,86 @@ const uploadForm = reactive({
   content: ''
 
 })
+
+
+
+const replaceForm = reactive({
+
+  audioUrl: '',
+
+  duration: ''
+
+})
+
+
+
+const stopAudio = (audioEl: HTMLAudioElement | null | undefined) => {
+
+  if (!audioEl) return
+
+  audioEl.pause()
+
+  audioEl.currentTime = 0
+
+}
+
+
+
+const stopPlayAudio = () => stopAudio(playAudioRef.value)
+
+
+
+const stopTestAudio = () => stopAudio(testAudioRef.value)
+
+
+
+const stopAllListeningAudio = () => {
+
+  stopPlayAudio()
+
+  stopTestAudio()
+
+}
+
+
+
+const closePlayDialog = () => {
+
+  stopPlayAudio()
+
+  playDialogVisible.value = false
+
+}
+
+
+
+const closeTestDialog = () => {
+
+  stopTestAudio()
+
+  testDialogVisible.value = false
+
+}
+
+
+
+watch(playDialogVisible, (visible) => {
+
+  if (!visible) stopPlayAudio()
+
+})
+
+
+
+watch(testDialogVisible, (visible) => {
+
+  if (!visible) stopTestAudio()
+
+})
+
+
+
+onBeforeUnmount(stopAllListeningAudio)
 
 
 
@@ -548,25 +728,13 @@ const handleAudioUpload = async (file: any) => {
 
 
 
-    const formData = new FormData()
+    const audioUrl = await uploadAudioFile(file.raw)
 
-    formData.append('file', file.raw)
+    if (audioUrl) {
 
-    const res = await axios.post('/api/listening/upload', formData, {
-
-      headers: { 'Content-Type': 'multipart/form-data' }
-
-    })
-
-    if (res.data.code === 200) {
-
-      uploadForm.audioUrl = res.data.data
+      uploadForm.audioUrl = audioUrl
 
       ElMessage.success('音频上传成功')
-
-    } else {
-
-      ElMessage.error(res.data.message || res.data.msg || '音频上传失败')
 
     }
 
@@ -577,6 +745,176 @@ const handleAudioUpload = async (file: any) => {
   } finally {
 
     audioUploading.value = false
+
+  }
+
+}
+
+
+
+const uploadAudioFile = async (rawFile: File): Promise<string | null> => {
+
+  const maxSize = 10 * 1024 * 1024
+
+  if (rawFile.size > maxSize) {
+
+    ElMessage.error('音频文件不能超过 10MB')
+
+    return null
+
+  }
+
+
+
+  try {
+
+    const formData = new FormData()
+
+    formData.append('file', rawFile)
+
+    const res = await axios.post('/api/listening/upload', formData, {
+
+      headers: { 'Content-Type': 'multipart/form-data' }
+
+    })
+
+    if (res.data.code === 200) {
+
+      return res.data.data
+
+    }
+
+    ElMessage.error(res.data.message || res.data.msg || '音频上传失败')
+
+    return null
+
+  } catch (err: any) {
+
+    if (err.response?.status === 413) {
+
+      ElMessage.error('音频文件过大，请上传不超过 10MB 的文件')
+
+    } else {
+
+      ElMessage.error(err.response?.data?.message || err.response?.data?.msg || '音频上传失败')
+
+    }
+
+    return null
+
+  }
+
+}
+
+
+
+const resetReplaceForm = () => {
+
+  replaceForm.audioUrl = ''
+
+  replaceForm.duration = ''
+
+}
+
+
+
+const openReplaceDialog = (row: any) => {
+
+  replaceTarget.value = row
+
+  resetReplaceForm()
+
+  replaceDialogVisible.value = true
+
+}
+
+
+
+const handleReplaceAudioUpload = async (file: any) => {
+
+  if (!file?.raw) return
+
+  replaceAudioUploading.value = true
+
+  try {
+
+    const duration = await detectAudioDuration(file.raw)
+
+    if (duration) replaceForm.duration = duration
+
+
+
+    const audioUrl = await uploadAudioFile(file.raw)
+
+    if (audioUrl) {
+
+      replaceForm.audioUrl = audioUrl
+
+      ElMessage.success('新音频上传成功')
+
+    }
+
+  } catch {
+
+    ElMessage.error('音频上传失败')
+
+  } finally {
+
+    replaceAudioUploading.value = false
+
+  }
+
+}
+
+
+
+const submitReplaceAudio = async () => {
+
+  if (!replaceTarget.value) return
+
+  if (!replaceForm.audioUrl.trim()) {
+
+    ElMessage.warning('请先上传新的音频文件')
+
+    return
+
+  }
+
+
+
+  replaceSaving.value = true
+
+  try {
+
+    const res = await axios.put(`/api/listening/${replaceTarget.value.id}/audio`, {
+
+      audioUrl: replaceForm.audioUrl,
+
+      duration: replaceForm.duration || null
+
+    })
+
+    if (res.data.code === 200) {
+
+      ElMessage.success('音频替换成功')
+
+      replaceDialogVisible.value = false
+
+      fetchListening()
+
+    } else {
+
+      ElMessage.error(res.data.message || res.data.msg || '音频替换失败')
+
+    }
+
+  } catch {
+
+    ElMessage.error('音频替换失败，请检查网络或权限')
+
+  } finally {
+
+    replaceSaving.value = false
 
   }
 
@@ -866,6 +1204,8 @@ const handleNewListen = async () => {
 
 const handlePlay = async (row: any) => {
 
+  closeTestDialog()
+
   playDialogVisible.value = true
 
   await loadDetail(row.id)
@@ -875,6 +1215,8 @@ const handlePlay = async (row: any) => {
 
 
 const handleDoTest = async (row: any) => {
+
+  closePlayDialog()
 
   currentTest.value = row
 
@@ -950,7 +1292,7 @@ const submitTest = async () => {
 
       ElMessage.success(`提交成功！您的得分是: ${score} 分`)
 
-      testDialogVisible.value = false
+      closeTestDialog()
 
       fetchListening()
 
@@ -1065,6 +1407,14 @@ const submitTest = async () => {
 }
 
 .question-no { font-weight: 600; color: #409eff; }
+
+.replace-audio-content { padding-right: 8px; }
+
+.replace-title { margin: 0 0 8px; color: #303133; }
+
+.replace-meta { margin: 0 0 8px; color: #606266; }
+
+.replace-current-audio { margin-bottom: 8px; }
 
 </style>
 

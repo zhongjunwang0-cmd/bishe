@@ -5,19 +5,40 @@
       
       <el-tabs v-model="activeTab" stretch>
         <el-tab-pane label="登录" name="login">
-          <el-form :model="loginForm" @submit.prevent="handleLogin">
+          <el-form :model="loginForm" autocomplete="on" @submit.prevent="handleLogin">
             <el-form-item>
-              <el-input v-model="loginForm.username" placeholder="用户名" prefix-icon="User" />
+              <el-autocomplete
+                v-model="loginForm.username"
+                :fetch-suggestions="querySavedAccounts"
+                value-key="username"
+                placeholder="用户名"
+                clearable
+                class="login-autocomplete"
+                @select="handleAccountSelect"
+                @blur="handleUsernameBlur"
+              >
+                <template #prefix>
+                  <el-icon><User /></el-icon>
+                </template>
+              </el-autocomplete>
             </el-form-item>
             <el-form-item>
-              <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" show-password />
+              <el-input
+                v-model="loginForm.password"
+                type="password"
+                placeholder="密码"
+                prefix-icon="Lock"
+                show-password
+                autocomplete="current-password"
+              />
             </el-form-item>
+            <div class="login-footer">
+              <el-checkbox v-model="rememberMe">记住密码</el-checkbox>
+              <el-link type="primary" :underline="false" @click="forgotPasswordVisible = true">忘记密码？</el-link>
+            </div>
             <el-form-item>
               <el-button type="primary" class="login-btn" @click="handleLogin">立即登录</el-button>
             </el-form-item>
-            <div class="login-footer">
-              <el-link type="primary" :underline="false" @click="forgotPasswordVisible = true">忘记密码？</el-link>
-            </div>
           </el-form>
         </el-tab-pane>
 
@@ -59,16 +80,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User } from '@element-plus/icons-vue'
 import axios from 'axios'
+import {
+  getAccountByUsername,
+  getLastLoginAccount,
+  loadSavedAccounts,
+  removeLoginAccount,
+  saveLoginAccount,
+  type SavedLoginAccount
+} from '../utils/authStorage'
 
 const router = useRouter()
 const activeTab = ref('login')
 const forgotPasswordVisible = ref(false)
+const rememberMe = ref(false)
 
 const loginForm = reactive({ username: '', password: '' })
+
+const applySavedAccount = (account: SavedLoginAccount) => {
+  loginForm.username = account.username
+  loginForm.password = account.password
+  rememberMe.value = true
+}
+
+onMounted(() => {
+  const lastAccount = getLastLoginAccount()
+  if (lastAccount) applySavedAccount(lastAccount)
+})
+
+const querySavedAccounts = (queryString: string, cb: (results: SavedLoginAccount[]) => void) => {
+  const accounts = loadSavedAccounts()
+  const keyword = queryString.trim().toLowerCase()
+  const results = keyword
+    ? accounts.filter(item => item.username.toLowerCase().includes(keyword))
+    : accounts
+  cb(results)
+}
+
+const handleAccountSelect = (account: SavedLoginAccount) => {
+  applySavedAccount(account)
+}
+
+const handleUsernameBlur = () => {
+  const account = getAccountByUsername(loginForm.username)
+  if (account) {
+    loginForm.password = account.password
+    rememberMe.value = true
+  } else {
+    loginForm.password = ''
+  }
+}
 const registerForm = reactive({ username: '', password: '', confirmPassword: '' })
 const forgotPasswordForm = reactive({ username: '', newPassword: '' })
 
@@ -84,8 +149,14 @@ const handleLogin = async () => {
       ElMessage.success('欢迎回来！')
       const user = res.data.data
       let role = 'User'
-      if (user.roleId === 1) role = 'Admin'
-      else if (user.roleId === 2) role = 'Teacher'
+      if (Number(user.roleId) === 1) role = 'Admin'
+      else if (Number(user.roleId) === 2) role = 'Teacher'
+
+      if (rememberMe.value) {
+        saveLoginAccount({ username: loginForm.username, password: loginForm.password })
+      } else {
+        removeLoginAccount(loginForm.username)
+      }
       
       localStorage.setItem('userRole', role)
       localStorage.setItem('username', user.username)
@@ -117,6 +188,7 @@ const handleRegister = async () => {
       ElMessage.success('注册成功，请登录')
       activeTab.value = 'login'
       loginForm.username = registerForm.username
+      loginForm.password = ''
       registerForm.username = ''
       registerForm.password = ''
       registerForm.confirmPassword = ''
@@ -158,5 +230,6 @@ const handleResetPassword = async () => {
 .login-card { width: 400px; padding: 20px; border-radius: 15px; }
 .login-title { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 20px; color: #409eff; }
 .login-btn { width: 100%; height: 40px; }
-.login-footer { display: flex; justify-content: flex-end; margin-top: 10px; font-size: 14px; }
+.login-autocomplete { width: 100%; }
+.login-footer { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
 </style>

@@ -24,7 +24,7 @@
           <el-table :data="vocabList" v-loading="loadingBrowse" style="width: 100%">
             <el-table-column prop="word" label="单词" width="160">
               <template #default="{ row }">
-                <span class="word-text">{{ row.word }}</span>
+                <span class="word-text" title="点击发音" @click="speakWord(row.word)">{{ row.word }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="phonetic" label="音标" width="140" />
@@ -53,7 +53,7 @@
           <el-table v-else :data="bookList" v-loading="loadingBook" style="width: 100%">
             <el-table-column prop="word" label="单词" width="160">
               <template #default="{ row }">
-                <span class="word-text">{{ row.word }}</span>
+                <span class="word-text" title="点击发音" @click="speakWord(row.word)">{{ row.word }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="translation" label="释义" />
@@ -124,7 +124,7 @@
             <div class="flashcard" @click="flipCard">
               <div :class="['card-inner', { flipped: cardFlipped }]">
                 <div class="card-front">
-                  <div class="card-word">{{ currentCard?.word }}</div>
+                  <div class="card-word" title="点击发音" @click.stop="speakWord(currentCard?.word)">{{ currentCard?.word }}</div>
                   <div class="card-phonetic">{{ currentCard?.phonetic }}</div>
                   <div class="card-hint">点击卡片查看释义</div>
                 </div>
@@ -158,6 +158,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import { preloadSpeechVoices, speakEnglish } from '../utils/speech'
 
 interface VocabItem {
   id: number
@@ -358,7 +359,15 @@ const formatTime = (t: string | null) => {
   return t.replace('T', ' ').substring(0, 16)
 }
 
+const speakWord = (word?: string) => {
+  if (!word) return
+  if (!speakEnglish(word)) {
+    ElMessage.warning('当前浏览器不支持语音朗读')
+  }
+}
+
 onMounted(async () => {
+  preloadSpeechVoices()
   await Promise.all([fetchVocabList(), fetchBookList(), fetchStats()])
 })
 </script>
@@ -370,7 +379,13 @@ onMounted(async () => {
 .stat-card { text-align: center; padding: 8px 0; }
 .stat-value { font-size: 28px; font-weight: bold; color: #409eff; }
 .stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
-.word-text { font-weight: bold; color: #409eff; }
+.word-text {
+  font-weight: bold;
+  color: #409eff;
+  cursor: pointer;
+  user-select: none;
+}
+.word-text:hover { text-decoration: underline; opacity: 0.85; }
 .review-badge { margin-left: 6px; }
 
 .flashcard-area { max-width: 560px; margin: 24px auto; }
@@ -412,7 +427,13 @@ onMounted(async () => {
   color: #fff;
   transform: rotateY(180deg);
 }
-.card-word { font-size: 36px; font-weight: bold; }
+.card-word {
+  font-size: 36px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+.card-word:hover { opacity: 0.9; }
 .card-phonetic { font-size: 16px; opacity: 0.85; margin-top: 8px; }
 .card-hint { font-size: 13px; opacity: 0.6; margin-top: 24px; }
 .card-translation { font-size: 22px; font-weight: 600; text-align: center; }

@@ -5,6 +5,7 @@ import com.english.learning.entity.LearningRecord;
 import com.english.learning.service.AiModelClient;
 import com.english.learning.service.AiService;
 import com.english.learning.service.ExternalLlmService;
+import com.english.learning.service.LearningPlanService;
 import com.english.learning.service.LearningRecordService;
 import com.english.learning.service.SystemConfigService;
 import com.english.learning.dto.AiChatResult;
@@ -50,6 +51,9 @@ public class AiServiceImpl implements AiService {
     @Autowired
     private AiModelClient aiModelClient;
 
+    @Autowired
+    private LearningPlanService learningPlanService;
+
     private static final List<String> KT_MODULES = List.of(
             "VOCAB", "GRAMMAR", "READING", "LISTENING", "ORAL");
 
@@ -74,6 +78,7 @@ public class AiServiceImpl implements AiService {
                     .toList());
             result.setAdvice(buildAdviceText(records, result));
         }
+        learningPlanService.syncAiRecommendToPlan(userId, result);
         return result;
     }
 

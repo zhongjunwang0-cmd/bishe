@@ -16,6 +16,12 @@ public class User {
     private String nickname;
     private String email;
     private Long roleId;
+    /** 英语水平：A1/A2/B1/B2/CET-4/CET-6/IELTS/TOEFL */
+    private String level;
+    /** 目标考试：CET-4/CET-6/IELTS/TOEFL/GENERAL */
+    private String targetExam;
+    /** 每日学习目标（分钟） */
+    private Integer dailyGoal;
     
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

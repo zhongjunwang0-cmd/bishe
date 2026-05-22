@@ -45,6 +45,53 @@
             </el-col>
           </el-row>
         </el-card>
+
+        <!-- User: weekly learning plan -->
+        <el-card shadow="hover" style="margin-top: 20px;" v-if="currentRole === 'User'">
+          <template #header>
+            <div class="plan-card-header">
+              <span>本周学习计划</span>
+              <div class="plan-card-actions">
+                <span v-if="weeklyPlan" class="plan-progress-text">
+                  {{ weeklyPlan.completedCount }}/{{ weeklyPlan.totalCount }} 已完成
+                </span>
+                <el-button link type="primary" @click="$router.push('/profile')">管理计划</el-button>
+              </div>
+            </div>
+          </template>
+          <el-skeleton :rows="3" animated v-if="loadingPlan" />
+          <div v-else-if="weeklyPlan">
+            <div class="plan-summary" v-if="weeklyPlan.targetExam || weeklyPlan.level">
+              <el-tag size="small" type="info">{{ weeklyPlan.level }}</el-tag>
+              <el-tag size="small">{{ examLabel(weeklyPlan.targetExam) }}</el-tag>
+              <el-tag size="small" type="success">每日 {{ weeklyPlan.dailyGoal }} 分钟</el-tag>
+            </div>
+            <el-progress
+              :percentage="planProgress"
+              :stroke-width="10"
+              style="margin: 12px 0 16px;"
+            />
+            <div class="section-title">今日任务</div>
+            <div v-if="weeklyPlan.todayItems?.length" class="today-plan-list">
+              <div
+                v-for="item in weeklyPlan.todayItems"
+                :key="item.id"
+                class="today-plan-item"
+                :class="{ done: item.completed }"
+              >
+                <el-icon v-if="item.completed" color="#67c23a"><Select /></el-icon>
+                <el-icon v-else color="#909399"><Clock /></el-icon>
+                <el-tag size="small" effect="plain">{{ item.moduleLabel }}</el-tag>
+                <el-tag v-if="item.source === 'ai_recommend'" size="small" type="warning">AI</el-tag>
+                <span>{{ item.taskText }}</span>
+              </div>
+            </div>
+            <p v-else class="advice-text">今日暂无计划任务，请前往个人中心生成计划。</p>
+          </div>
+          <el-empty v-else description="尚未设置学习档案">
+            <el-button type="primary" @click="$router.push('/profile')">去设置</el-button>
+          </el-empty>
+        </el-card>
       </el-col>
 
       <el-col :span="8">
@@ -124,8 +171,9 @@
               </div>
               <div v-if="recommend.todayTasks?.length" class="task-section">
                 <div class="section-title">推荐任务</div>
+                <p class="sync-hint">已同步至左侧「本周学习计划」（标记 AI）</p>
                 <ul class="task-list">
-                  <li v-for="(task, i) in recommend.todayTasks" :key="i">{{ task }}</li>
+                  <li v-for="(task, i) in recommend.todayTasks" :key="i">【AI推荐】{{ task }}</li>
                 </ul>
               </div>
               <p v-if="!recommend.weakModules?.length && !recommend.todayTasks?.length" class="advice-text">
@@ -154,6 +202,8 @@ const router = useRouter()
 const currentRole = inject<any>('currentRole', ref('User'))
 const username = ref(localStorage.getItem('username') || '用户')
 const loadingRecommend = ref(true)
+const loadingPlan = ref(true)
+const weeklyPlan = ref<any>(null)
 const recommendSource = ref('')
 const recommend = ref<{
   weakModules: string[]
@@ -347,6 +397,36 @@ const goTeachingManagement = () => {
   router.push('/admin/teaching')
 }
 
+const examLabel = (exam: string) => {
+  const map: Record<string, string> = {
+    GENERAL: '通用提升',
+    'CET-4': 'CET-4',
+    'CET-6': 'CET-6',
+    IELTS: 'IELTS',
+    TOEFL: 'TOEFL'
+  }
+  return map[exam] || exam
+}
+
+const planProgress = computed(() => {
+  if (!weeklyPlan.value?.totalCount) return 0
+  return Math.round((weeklyPlan.value.completedCount / weeklyPlan.value.totalCount) * 100)
+})
+
+const fetchWeeklyPlan = async () => {
+  loadingPlan.value = true
+  try {
+    const res = await axios.get('/api/plan/current')
+    if (res.data.code === 200) {
+      weeklyPlan.value = res.data.data
+    }
+  } catch {
+    weeklyPlan.value = null
+  } finally {
+    loadingPlan.value = false
+  }
+}
+
 // ── Chart and data fetching ───────────────────────────────
 const fetchRecommend = async () => {
   loadingRecommend.value = true
@@ -370,8 +450,11 @@ const fetchRecommend = async () => {
   }
 }
 
-onMounted(() => {
-  if (currentRole.value === 'User') fetchRecommend()
+onMounted(async () => {
+  if (currentRole.value === 'User') {
+    await fetchRecommend()
+    await fetchWeeklyPlan()
+  }
   fetchStats()
 })
 </script>
@@ -411,4 +494,12 @@ onMounted(() => {
 .section-title { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 8px; }
 .task-list { margin: 0; padding-left: 18px; color: #606266; font-size: 13px; line-height: 1.8; }
 .weak-section, .task-section { margin-bottom: 12px; }
+.plan-card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.plan-card-actions { display: flex; align-items: center; gap: 12px; }
+.plan-progress-text { font-size: 13px; color: #909399; }
+.plan-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+.today-plan-list { display: flex; flex-direction: column; gap: 10px; }
+.today-plan-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #606266; }
+.today-plan-item.done { opacity: 0.65; text-decoration: line-through; }
+.sync-hint { font-size: 12px; color: #909399; margin: 0 0 8px; }
 </style>

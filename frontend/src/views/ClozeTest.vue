@@ -1,9 +1,14 @@
 <template>
   <div class="cloze-container">
+    <T5ModelBadge variant="banner" module="cloze" />
+
     <el-card shadow="hover">
       <template #header>
         <div class="card-header">
-          <span>选词填空</span>
+          <div class="title-block">
+            <span>选词填空</span>
+            <T5ModelBadge variant="tag" />
+          </div>
           <el-button type="primary" icon="EditPen" @click="handleNewCloze">开始新填空</el-button>
         </div>
       </template>
@@ -48,6 +53,20 @@
           </p>
         </div>
         <el-empty v-else description="该测试暂无结构化题目，请使用「开始新填空」从题库生成" />
+        <el-divider v-if="questions.length">造句巩固 · T5 语法纠错</el-divider>
+        <div v-if="questions.length" class="sentence-box">
+          <p class="sentence-hint">用本篇文章关键词造句，检验语法是否正确：</p>
+          <el-input v-model="sentenceInput" type="textarea" :rows="2" placeholder="例如：The research shows that vocabulary learning is important." />
+          <div class="sentence-actions">
+            <el-button type="warning" :loading="sentenceLoading" @click="checkSentence">T5 纠错</el-button>
+          </div>
+          <div v-if="sentenceResult" class="sentence-result">
+            <p><strong>修改后：</strong>{{ sentenceResult.corrected }}</p>
+            <ul v-if="sentenceResult.issues?.length">
+              <li v-for="(issue, idx) in sentenceResult.issues" :key="idx">{{ issue.message }}</li>
+            </ul>
+          </div>
+        </div>
       </div>
       <template #footer>
         <el-button @click="testDialogVisible = false">取消</el-button>
@@ -79,6 +98,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
 
 const tableData = ref<any[]>([])
 const loading = ref(false)
@@ -90,6 +110,9 @@ const questions = ref<any[]>([])
 const answerKeys = ref<any[]>([])
 const answers = ref<string[]>([])
 const submitting = ref(false)
+const sentenceInput = ref('')
+const sentenceLoading = ref(false)
+const sentenceResult = ref<any>(null)
 
 const parsePassage = (content: string) => {
   if (!content) return []
@@ -175,8 +198,31 @@ const handleNewCloze = async () => {
 const handleStart = async (row: any) => {
   currentTest.value = row
   testDialogVisible.value = true
+  sentenceInput.value = ''
+  sentenceResult.value = null
   await loadDetail(row.id)
   answers.value = Array(questions.value.length).fill('')
+}
+
+const checkSentence = async () => {
+  if (!sentenceInput.value.trim()) {
+    ElMessage.warning('请先输入英文句子')
+    return
+  }
+  sentenceLoading.value = true
+  sentenceResult.value = null
+  try {
+    const res = await axios.post('/api/grammar/correct', { text: sentenceInput.value.trim() })
+    if (res.data.code === 200) {
+      sentenceResult.value = res.data.data
+    } else {
+      ElMessage.error(res.data.message || '纠错失败')
+    }
+  } catch {
+    ElMessage.error('语法纠错服务不可用')
+  } finally {
+    sentenceLoading.value = false
+  }
 }
 
 const handleViewKey = async (row: any) => {
@@ -214,11 +260,17 @@ const submitTest = async () => {
 
 <style scoped>
 .cloze-container { padding: 10px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.title-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .passage-box { background-color: #f9fafc; padding: 25px; border-radius: 8px; border: 1px solid #ebeef5; line-height: 2.2; }
 .passage-text { font-size: 16px; color: #303133; white-space: pre-wrap; }
 .blank-slot { display: inline-block; margin: 0 4px; font-weight: bold; color: #409EFF; }
 .key-item { margin-bottom: 15px; }
 .label { font-weight: bold; color: #606266; margin-right: 8px; }
 .explanation { color: #666; line-height: 1.6; }
+.sentence-box { margin-top: 8px; padding: 12px; background: #fff; border: 1px dashed #dcdfe6; border-radius: 8px; }
+.sentence-hint { color: #606266; margin: 0 0 8px; font-size: 13px; }
+.sentence-actions { margin-top: 8px; text-align: right; }
+.sentence-result { margin-top: 10px; line-height: 1.6; font-size: 14px; }
+.sentence-result ul { margin: 6px 0; padding-left: 18px; }
 </style>

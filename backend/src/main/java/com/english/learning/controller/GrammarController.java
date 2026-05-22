@@ -1,12 +1,15 @@
 package com.english.learning.controller;
 
 import com.english.learning.common.Result;
+import com.english.learning.dto.GrammarCorrectDto;
 import com.english.learning.dto.SubmitAnswersRequest;
 import com.english.learning.entity.Grammar;
 import com.english.learning.entity.LearningRecord;
 import com.english.learning.entity.User;
+import com.english.learning.service.AiModelClient;
 import com.english.learning.service.GrammarService;
 import com.english.learning.service.LearningRecordService;
+import com.english.learning.util.EnglishWritingAnalyzer;
 import com.english.learning.util.GrammarTestBank;
 import com.english.learning.util.ScoreUtil;
 import org.apache.shiro.SecurityUtils;
@@ -28,6 +31,34 @@ public class GrammarController {
 
     @Autowired
     private LearningRecordService learningRecordService;
+
+    @Autowired
+    private AiModelClient aiModelClient;
+
+    @PostMapping("/correct")
+    public Result<GrammarCorrectDto> correct(@RequestBody Map<String, String> request) {
+        String text = request.get("text");
+        if (text == null || text.isBlank()) {
+            return Result.error("请输入需要纠错的英文句子");
+        }
+
+        GrammarCorrectDto dto = aiModelClient.correctGrammar(text.trim());
+        if (dto == null) {
+            EnglishWritingAnalyzer.AnalysisResult analysis = EnglishWritingAnalyzer.analyze(text.trim());
+            dto = new GrammarCorrectDto();
+            dto.setCorrected(analysis.corrected);
+            dto.setSource("rule_fallback");
+            List<Map<String, String>> issues = new ArrayList<>();
+            for (EnglishWritingAnalyzer.GrammarIssue issue : analysis.issues) {
+                Map<String, String> item = new LinkedHashMap<>();
+                item.put("type", issue.type);
+                item.put("message", issue.problem + " → " + issue.correction);
+                issues.add(item);
+            }
+            dto.setIssues(issues);
+        }
+        return Result.success(dto);
+    }
 
     @GetMapping("/list")
     public Result<List<Grammar>> list() {

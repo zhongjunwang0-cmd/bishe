@@ -10,6 +10,7 @@ import ast
 import json
 import os
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -22,15 +23,21 @@ from _paths import load_paths, processed_dir  # noqa: E402
 
 
 def parse_corrections(raw: str) -> str:
+    """Return the first JFLEG reference correction."""
     if pd.isna(raw) or not str(raw).strip():
         return ""
+    text = str(raw).strip()
+    # JFLEG stores 4 refs as adjacent quoted strings; ast merges them — use regex instead
+    quoted = re.findall(r"'((?:\\'|[^'])*)'", text)
+    if quoted:
+        return quoted[0].strip()
     try:
-        items = ast.literal_eval(str(raw))
+        items = ast.literal_eval(text)
         if isinstance(items, list) and items:
             return str(items[0]).strip()
     except (ValueError, SyntaxError):
         pass
-    return str(raw).strip()
+    return text.strip()
 
 
 def main() -> None:

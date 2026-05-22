@@ -17,6 +17,17 @@ public final class EnglishWritingAnalyzer {
 
     static {
         COMMON_MISSPELLINGS.put("doges", "dogs");
+        COMMON_MISSPELLINGS.put("teh", "the");
+        COMMON_MISSPELLINGS.put("ohter", "other");
+        COMMON_MISSPELLINGS.put("goog", "good");
+        COMMON_MISSPELLINGS.put("duildings", "buildings");
+        COMMON_MISSPELLINGS.put("drasticly", "drastically");
+        COMMON_MISSPELLINGS.put("dicease", "disease");
+        COMMON_MISSPELLINGS.put("therfor", "therefore");
+        COMMON_MISSPELLINGS.put("socity", "society");
+        COMMON_MISSPELLINGS.put("systm", "system");
+        COMMON_MISSPELLINGS.put("diferent", "different");
+        COMMON_MISSPELLINGS.put("alwasy", "always");
         COMMON_MISSPELLINGS.put("recieve", "receive");
         COMMON_MISSPELLINGS.put("occured", "occurred");
         COMMON_MISSPELLINGS.put("definately", "definitely");
@@ -111,6 +122,8 @@ public final class EnglishWritingAnalyzer {
         checkSentenceCapitalization(result);
         checkStandaloneI(result);
         checkSubjectVerbAgreement(result);
+        checkItsMakePattern(result);
+        checkBeVerbAgreement(result);
         checkCommonMisspellings(result);
         checkArticleUsage(result);
         checkEndPunctuation(result);
@@ -270,6 +283,57 @@ public final class EnglishWritingAnalyzer {
                     "I/you/we/they 作主语时动词应使用原形 like",
                     "将 likes 改为 like",
                     "一般现在时中，I/you/we/they 作主语时，动词用原形，不加 -s。"
+            ));
+        } else if (lower.matches("(?i)(he|she|it)\\s+(go|make|want|need|work|say|get|know|think|take|see|come|give|use|find|tell|ask|show|learn|help|play|run|live|write|read|speak|watch|follow|stop|bring|build|send|pay|meet|include|create|allow|add|open|walk|offer|remember|consider|wait|serve|expect|stay|pass|sell|require|decide|develop|carry|break|receive|agree|support|produce|transmit)\\b.*")) {
+            result.corrected = result.corrected.replaceFirst(
+                    "(?i)(he|she|it)\\s+(go|make|want|need|work|say|get|know|think|take|see|come|give|use|find|tell|ask|show|learn|help|play|run|live|write|read|speak|watch|follow|stop|bring|build|send|pay|meet|include|create|allow|add|open|walk|offer|remember|consider|wait|serve|expect|stay|pass|sell|require|decide|develop|carry|break|receive|agree|support|produce|transmit)\\b",
+                    "$1 $2s");
+            result.issues.add(new GrammarIssue(
+                    "主谓一致",
+                    "第三人称单数主语后动词需加 -s",
+                    "已为动词添加第三人称单数形式",
+                    "一般现在时中，he/she/it 作主语时，动词通常需加 -s/-es。"
+            ));
+        } else if (lower.matches("(?i)(he|she|it)\\s+have\\b.*")) {
+            result.corrected = result.corrected.replaceFirst("(?i)(he|she|it)\\s+have\\b", "$1 has");
+            result.issues.add(new GrammarIssue(
+                    "主谓一致",
+                    "第三人称单数主语后 have 应变为 has",
+                    "将 have 改为 has",
+                    "he/she/it 作主语时，have 需变为 has。"
+            ));
+        } else if (lower.matches("(?i)(he|she|it)\\s+do\\b.*")) {
+            result.corrected = result.corrected.replaceFirst("(?i)(he|she|it)\\s+do\\b", "$1 does");
+            result.issues.add(new GrammarIssue(
+                    "主谓一致",
+                    "第三人称单数主语后 do 应变为 does",
+                    "将 do 改为 does",
+                    "he/she/it 作主语时，do 需变为 does。"
+            ));
+        }
+    }
+
+    private static void checkItsMakePattern(AnalysisResult result) {
+        if (result.corrected.matches("(?i).*\\bit's\\s+make\\b.*")) {
+            result.corrected = result.corrected.replaceFirst("(?i)\\bit's\\s+make\\b", "It makes");
+            result.issues.add(new GrammarIssue(
+                    "主谓一致",
+                    "it's make 结构错误",
+                    "改为 It makes",
+                    "it 作主语时 be 动词用 is，实义动词 make 需变为 makes（It makes...）。"
+            ));
+        }
+    }
+
+    private static void checkBeVerbAgreement(AnalysisResult result) {
+        String lower = result.corrected.toLowerCase();
+        if (lower.matches("(?i).*(people|children|students|they)\\s+is\\b.*")) {
+            result.corrected = result.corrected.replaceFirst("(?i)(people|children|students|they)\\s+is\\b", "$1 are");
+            result.issues.add(new GrammarIssue(
+                    "主谓一致",
+                    "复数主语后 be 动词应使用 are",
+                    "将 is 改为 are",
+                    "people、they 等复数主语后应搭配 are。"
             ));
         }
     }

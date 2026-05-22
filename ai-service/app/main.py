@@ -13,12 +13,32 @@ from fastapi import FastAPI, File, Form, UploadFile
 from pydantic import BaseModel, Field
 
 from app.dkt_engine import TASK_MAP, get_dkt_engine
+from app.grammar_engine import get_grammar_engine
+from app.pronunciation_engine import get_pronunciation_engine
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = APP_ROOT.parent
 MODELS_DIR = Path(os.getenv("MODELS_DIR", PROJECT_ROOT / "ml" / "models"))
 
 app = FastAPI(title="English Learning AI Service", version="0.2.0")
+
+
+@app.on_event("startup")
+def preload_models() -> None:
+    """Warm up Whisper in background; do not block HTTP startup."""
+    if os.getenv("PRELOAD_WHISPER", "1") != "1":
+        return
+    import threading
+
+    def _warm() -> None:
+        try:
+            engine = get_pronunciation_engine(MODELS_DIR)
+            engine.warm_whisper()
+        except Exception:
+            pass
+
+    threading.Thread(target=_warm, daemon=True).start()
+
 
 _kt_bundle: dict[str, Any] | None = None
 MODULES = ["VOCAB", "GRAMMAR", "READING", "LISTENING", "ORAL"]
@@ -75,6 +95,9 @@ class PronunciationResponse(BaseModel):
     transcript: str
     misread_words: list[str]
     feedback: str
+    suggestions: list[str] = Field(default_factory=list)
+    source: str = "Whisper-WER"
+    calibrated: bool = False
 
 
 def _gbdt_recommend(stats: dict[str, ModuleStat]) -> RecommendResponse | None:
@@ -115,9 +138,15 @@ def _rule_recommend(stats: dict[str, ModuleStat]) -> RecommendResponse:
 @app.get("/health")
 def health():
     dkt = get_dkt_engine(MODELS_DIR)
+    grammar = get_grammar_engine(MODELS_DIR)
+    pronunciation = get_pronunciation_engine(MODELS_DIR)
     return {
         "status": "ok",
         "dkt_model": dkt.ready,
+        "grammar_model": grammar.model_ready,
+        "grammar_mode": grammar.mode,
+        "pronunciation_model": (MODELS_DIR / "pronunciation_meta.json").is_file(),
+        "pronunciation_source": pronunciation.source,
         "gbdt_fallback": (MODELS_DIR / "kt_recommend.joblib").is_file(),
         "models_dir": str(MODELS_DIR),
     }
@@ -147,13 +176,9 @@ def recommend(req: RecommendRequest):
 
 @app.post("/api/grammar/correct", response_model=GrammarResponse)
 def grammar_correct(req: GrammarRequest):
-    text = req.text.strip()
-    issues = []
-    corrected = text
-    if " dont " in f" {text.lower()} ":
-        corrected = text.replace("dont", "don't").replace("Dont", "Don't")
-        issues.append({"type": "spelling", "message": "Use don't instead of dont"})
-    return GrammarResponse(corrected=corrected, issues=issues, source="rule_fallback")
+    grammar = get_grammar_engine(MODELS_DIR)
+    result = grammar.correct(req.text.strip())
+    return GrammarResponse(**result)
 
 
 @app.post("/api/pronunciation/score", response_model=PronunciationResponse)
@@ -161,38 +186,8 @@ async def pronunciation_score(
     reference_text: str = Form(...),
     audio: UploadFile = File(...),
 ):
-    ref = reference_text.strip().lower()
-    ref_words = ref.split()
     data = await audio.read()
-
-    try:
-        import tempfile
-
-        import whisper
-        from jiwer import wer
-
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
-        model = whisper.load_model(os.getenv("WHISPER_MODEL", "tiny"))
-        result = model.transcribe(tmp_path, language="en")
-        hyp = result.get("text", "").strip().lower()
-        w = wer(ref, hyp) if ref else 1.0
-        score = max(0, min(100, int(100 * (1 - w))))
-        hyp_words = set(hyp.split())
-        misread = [w for w in ref_words if w not in hyp_words][:10]
-        return PronunciationResponse(
-            score=score,
-            wer=round(w, 3),
-            transcript=hyp,
-            misread_words=misread,
-            feedback="发音清晰，请继续练习。" if score >= 80 else "部分单词与参考不一致，请对照文本重读。",
-        )
-    except Exception:
-        return PronunciationResponse(
-            score=75,
-            wer=0.25,
-            transcript="(install openai-whisper and jiwer for real scoring)",
-            misread_words=[],
-            feedback="Demo mode: pip install openai-whisper jiwer in ai-service",
-        )
+    suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
+    engine = get_pronunciation_engine(MODELS_DIR)
+    result = engine.score(reference_text, data, suffix=suffix)
+    return PronunciationResponse(**result)

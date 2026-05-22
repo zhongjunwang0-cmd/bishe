@@ -39,6 +39,8 @@
               <el-card shadow="hover" class="shortcut-card" @click="$router.push(shortcut.path)">
                 <el-icon class="shortcut-icon"><component :is="shortcut.icon" /></el-icon>
                 <div class="shortcut-name">{{ shortcut.name }}</div>
+                <T5ModelBadge v-if="shortcut.model === 't5'" variant="tag" class="shortcut-badge" />
+                <WhisperModelBadge v-else-if="shortcut.model === 'whisper'" variant="tag" class="shortcut-badge" />
               </el-card>
             </el-col>
           </el-row>
@@ -46,6 +48,8 @@
       </el-col>
 
       <el-col :span="8">
+        <T5IntegrationPanel style="margin-bottom: 20px;" />
+
         <!-- Admin: permission matrix panel -->
         <el-card shadow="hover" v-if="currentRole === 'Admin'">
           <template #header>
@@ -141,6 +145,9 @@ import { ref, computed, inject, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import axios from 'axios'
+import T5IntegrationPanel from '../components/T5IntegrationPanel.vue'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
+import WhisperModelBadge from '../components/WhisperModelBadge.vue'
 
 const router = useRouter()
 
@@ -226,10 +233,10 @@ const teacherShortcuts = [
   { name: '文献上传', icon: 'Document', path: '/literature' }
 ]
 const userShortcuts = [
-  { name: '口语练习', icon: 'Microphone', path: '/oral' },
+  { name: '口语练习', icon: 'Microphone', path: '/oral', model: 'whisper' },
   { name: '听力训练', icon: 'Headset', path: '/listening' },
   { name: '阅读理解', icon: 'Document', path: '/reading' },
-  { name: '选词填空', icon: 'EditPen', path: '/cloze' }
+  { name: '选词填空', icon: 'EditPen', path: '/cloze', model: 't5' },
 ]
 const currentShortcuts = computed(() => {
   if (currentRole.value === 'Admin') return adminShortcuts
@@ -387,8 +394,9 @@ onMounted(() => {
 .stat-header { color: #909399; font-size: 13px; margin-bottom: 6px; }
 .stat-value { font-size: 26px; font-weight: bold; color: #303133; }
 
-.shortcut-card { text-align: center; cursor: pointer; transition: all 0.3s; }
+.shortcut-card { text-align: center; cursor: pointer; transition: all 0.3s; position: relative; }
 .shortcut-card:hover { transform: translateY(-5px); }
+.shortcut-badge { margin-top: 8px; }
 .shortcut-icon { font-size: 30px; color: #409eff; margin-bottom: 8px; }
 .shortcut-name { font-size: 13px; color: #606266; }
 

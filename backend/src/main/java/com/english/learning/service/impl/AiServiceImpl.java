@@ -9,6 +9,7 @@ import com.english.learning.service.LearningRecordService;
 import com.english.learning.service.SystemConfigService;
 import com.english.learning.dto.AiChatResult;
 import com.english.learning.dto.AiIntegrationConfig;
+import com.english.learning.dto.GrammarCorrectDto;
 import com.english.learning.dto.KtRecommendDto;
 import com.english.learning.dto.LearningEventDto;
 import com.english.learning.dto.ModuleStatDto;
@@ -245,6 +246,13 @@ public class AiServiceImpl implements AiService {
     // ─── 知识问答：外部 LLM 优先，规则引擎降级 ───────────────────────────────────
     @Override
     public AiChatResult getChatResponse(Long userId, String query) {
+        if (query != null && !query.isBlank()) {
+            String q = query.toLowerCase().strip();
+            if (EnglishWritingAnalyzer.isCorrectionIntent(q) && EnglishWritingAnalyzer.containsEnglishText(query)) {
+                return buildCorrectionChatResult(query);
+            }
+        }
+
         AiIntegrationConfig aiConfig = systemConfigService.getAiIntegrationConfig();
         if (aiConfig.isConfigured() && query != null && !query.isBlank()) {
             var externalReply = externalLlmService.chat(aiConfig, query);
@@ -386,18 +394,104 @@ public class AiServiceImpl implements AiService {
     }
 
     private String buildWritingCorrectionResponse(String query) {
+        return buildCorrectionChatResult(query).getContent();
+    }
+
+    private AiChatResult buildCorrectionChatResult(String query) {
+        AiChatResult t5Result = tryT5Correction(query);
+        if (t5Result != null) {
+            return t5Result;
+        }
+
         List<EnglishWritingAnalyzer.AnalysisResult> results = EnglishWritingAnalyzer
                 .extractEnglishFragments(query)
                 .stream()
                 .map(EnglishWritingAnalyzer::analyze)
                 .toList();
 
+        AiChatResult result = new AiChatResult();
+        result.setSource("rule_engine");
         if (results.isEmpty()) {
-            return "【AI 写作批改】 请直接发送需要批改的英文句子，例如：\n" +
+            result.setContent("【AI 写作批改】 请直接发送需要批改的英文句子，例如：\n" +
                    "「I like doges. 请帮我找出错误并修改」\n\n" +
-                   "我会逐条指出错误并给出语法讲解。";
+                   "我会逐条指出错误并给出语法讲解。");
+            return result;
         }
-        return EnglishWritingAnalyzer.formatCorrectionResponse(query, results);
+        result.setContent(EnglishWritingAnalyzer.formatCorrectionResponse(query, results));
+        return result;
+    }
+
+    private AiChatResult tryT5Correction(String query) {
+        List<String> fragments = EnglishWritingAnalyzer.extractEnglishFragments(query);
+        if (fragments.isEmpty()) {
+            return null;
+        }
+
+        List<GrammarCorrectDto> corrections = new ArrayList<>();
+        for (String fragment : fragments) {
+            GrammarCorrectDto dto = aiModelClient.correctGrammar(fragment);
+            if (dto == null || dto.getCorrected() == null) {
+                return null;
+            }
+            corrections.add(dto);
+        }
+
+        AiChatResult result = new AiChatResult();
+        result.setContent(formatT5CorrectionResponse(query, fragments, corrections));
+        result.setSource("t5_gec");
+        return result;
+    }
+
+    private String formatT5CorrectionResponse(String query, List<String> fragments,
+                                              List<GrammarCorrectDto> corrections) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("【T5 语法纠错】\n");
+        sb.append("模型：").append(corrections.get(0).getSource()).append("（JFLEG 微调）\n\n");
+
+        if (corrections.size() > 1) {
+            sb.append("共分析 ").append(corrections.size()).append(" 个句子\n\n");
+            sb.append("修改后全文\n");
+            for (GrammarCorrectDto dto : corrections) {
+                sb.append(dto.getCorrected()).append(' ');
+            }
+            sb.append("\n\n────────────────────────\n\n");
+        }
+
+        for (int i = 0; i < corrections.size(); i++) {
+            GrammarCorrectDto dto = corrections.get(i);
+            if (corrections.size() > 1) {
+                sb.append("第 ").append(i + 1).append(" 句\n\n");
+            }
+            sb.append("原句\n");
+            sb.append("  ").append(fragments.get(i)).append("\n\n");
+            sb.append("修改后\n");
+            sb.append("  ").append(dto.getCorrected()).append("\n\n");
+
+            if (dto.getIssues() == null || dto.getIssues().isEmpty()) {
+                sb.append("本句未发现明显语法或拼写错误。\n");
+            } else {
+                sb.append("语法讲解（").append(dto.getIssues().size()).append(" 处）\n");
+                for (int j = 0; j < dto.getIssues().size(); j++) {
+                    Map<String, String> issue = dto.getIssues().get(j);
+                    sb.append("\n");
+                    sb.append(j + 1).append("）")
+                      .append(issue.getOrDefault("type", "grammar")).append("\n");
+                    sb.append("   讲解：").append(issue.getOrDefault("message", "")).append("\n");
+                }
+            }
+            if (i < corrections.size() - 1) {
+                sb.append("\n────────────────────────\n\n");
+            }
+        }
+
+        if (query != null && query.toLowerCase().contains("doge")) {
+            sb.append("\n\n补充说明\n");
+            sb.append("  若您指的是网络用语 Doge（柴犬梗），作为专有名词可大写为 Doge；")
+              .append("若表示“狗”的复数，正确写法是 dogs。\n");
+        }
+
+        sb.append("\n\n继续批改请直接发送英文句子，或前往「语法学习」进行造句练习。");
+        return sb.toString();
     }
 
     /** 判断文本是否以英文为主（用于识别用户直接发送的英文句子） */

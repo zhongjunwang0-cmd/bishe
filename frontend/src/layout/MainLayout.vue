@@ -26,15 +26,15 @@
         <el-menu-item-group title="学习模块">
           <el-menu-item index="/vocab">
             <el-icon><Collection /></el-icon>
-            <span>词汇学习</span>
+            <span class="menu-item-label">词汇学习<T5ModelBadge variant="menu" /></span>
           </el-menu-item>
           <el-menu-item index="/grammar">
             <el-icon><Notebook /></el-icon>
-            <span>语法学习</span>
+            <span class="menu-item-label">语法学习<T5ModelBadge variant="menu" /></span>
           </el-menu-item>
           <el-menu-item index="/oral">
             <el-icon><Microphone /></el-icon>
-            <span>口语练习</span>
+            <span class="menu-item-label">口语练习<WhisperModelBadge variant="menu" /></span>
           </el-menu-item>
           <el-menu-item index="/literature">
             <el-icon><Document /></el-icon>
@@ -50,7 +50,7 @@
           </el-menu-item>
           <el-menu-item index="/cloze">
             <el-icon><EditPen /></el-icon>
-            <span>选词填空</span>
+            <span class="menu-item-label">选词填空<T5ModelBadge variant="menu" /></span>
           </el-menu-item>
         </el-menu-item-group>
 
@@ -65,7 +65,7 @@
           </el-menu-item>
           <el-menu-item index="/ai-tutoring">
             <el-icon><Service /></el-icon>
-            <span>AI辅导学习</span>
+            <span class="menu-item-label">AI辅导学习<T5ModelBadge variant="menu" /></span>
           </el-menu-item>
         </el-menu-item-group>
 
@@ -156,6 +156,8 @@ import { ref, computed, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { preserveSavedLoginOnClear } from '../utils/authStorage'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
+import WhisperModelBadge from '../components/WhisperModelBadge.vue'
 
 const router = useRouter()
 
@@ -200,4 +202,10 @@ const handleLogout = async () => {
 .el-header { background: #fff; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ebeef5; padding: 0 20px; }
 .user-info { display: flex; align-items: center; cursor: pointer; gap: 10px; }
 .username { font-size: 14px; color: #303133; }
+.menu-item-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
 </style>

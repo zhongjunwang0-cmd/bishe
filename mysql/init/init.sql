@@ -166,6 +166,7 @@ CREATE TABLE `biz_cloze` (
 CREATE TABLE `biz_oral` (
     `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `topic` VARCHAR(255) NOT NULL,
+    `reference_text` VARCHAR(512) DEFAULT NULL COMMENT 'English reading prompt',
     `score` INT DEFAULT NULL,
     `attempts` INT DEFAULT 0,
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP

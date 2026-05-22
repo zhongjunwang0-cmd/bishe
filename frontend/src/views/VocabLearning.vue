@@ -1,5 +1,7 @@
 <template>
   <div class="vocab-learning">
+    <T5ModelBadge variant="banner" module="vocab" />
+
     <!-- 统计概览 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :span="6" v-for="item in statCards" :key="item.key">
@@ -14,7 +16,10 @@
       <template #header>
         <div class="card-header">
           <span>词汇学习与复习</span>
-          <el-tag type="info" size="small">艾宾浩斯间隔：1 → 2 → 4 → 7 → 15 → 30 天</el-tag>
+          <div class="header-tags">
+            <T5ModelBadge variant="tag" />
+            <el-tag type="info" size="small">艾宾浩斯间隔：1 → 2 → 4 → 7 → 15 → 30 天</el-tag>
+          </div>
         </div>
       </template>
 
@@ -147,6 +152,78 @@
                 <el-icon><Check /></el-icon> 记住了
               </el-button>
             </div>
+            <div v-show="cardFlipped" class="review-sentence-link">
+              <el-button link type="warning" @click="goSentencePractice(currentCard)">
+                用「{{ currentCard?.word }}」造句 → T5 纠错
+              </el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- 造句练习 -->
+        <el-tab-pane name="sentence">
+          <template #label>
+            <span class="tab-label-with-badge">
+              造句练习
+              <T5ModelBadge variant="menu" />
+            </span>
+          </template>
+          <el-alert
+            title="选择生词并用其造句，T5-GEC 模型（JFLEG 微调）将自动纠错，巩固词汇在语境中的用法。"
+            type="info"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 16px;"
+          />
+          <el-empty v-if="!bookList.length && !loadingBook" description="请先将单词加入生词本">
+            <el-button type="primary" @click="activeTab = 'browse'">去词库添加</el-button>
+          </el-empty>
+          <div v-else class="sentence-practice" v-loading="loadingBook">
+            <el-form label-width="88px">
+              <el-form-item label="目标单词">
+                <el-select
+                  v-model="sentenceWordId"
+                  filterable
+                  placeholder="从生词本选择"
+                  style="width: 280px;"
+                >
+                  <el-option
+                    v-for="w in bookList"
+                    :key="w.vocabId"
+                    :label="w.word"
+                    :value="w.vocabId"
+                  />
+                </el-select>
+                <el-tag v-if="selectedSentenceWord" size="small" style="margin-left: 8px;">
+                  {{ selectedSentenceWord.translation }}
+                </el-tag>
+              </el-form-item>
+              <el-form-item v-if="selectedSentenceWord?.example" label="参考例句">
+                <span class="example-ref">{{ selectedSentenceWord.example }}</span>
+              </el-form-item>
+              <el-form-item label="我的造句">
+                <el-input
+                  v-model="sentenceInput"
+                  type="textarea"
+                  :rows="3"
+                  :placeholder="sentencePlaceholder"
+                />
+              </el-form-item>
+            </el-form>
+            <div class="sentence-actions">
+              <el-button type="warning" :loading="sentenceLoading" @click="checkSentence">
+                T5 语法纠错
+              </el-button>
+            </div>
+            <div v-if="sentenceResult" class="sentence-result">
+              <p><strong>修改后：</strong>{{ sentenceResult.corrected }}</p>
+              <ul v-if="sentenceResult.issues?.length">
+                <li v-for="(issue, idx) in sentenceResult.issues" :key="idx">
+                  [{{ issue.type }}] {{ issue.message }}
+                </li>
+              </ul>
+              <el-tag size="small" type="warning">{{ sentenceResult.source }}</el-tag>
+            </div>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -158,7 +235,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
-import { preloadSpeechVoices, speakEnglish } from '../utils/speech'
+import { isSpeechSupported, preloadSpeechVoices, speakEnglish } from '../utils/speech'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
 
 interface VocabItem {
   id: number
@@ -195,7 +273,23 @@ const reviewIndex = ref(0)
 const cardFlipped = ref(false)
 const reviewDone = ref(false)
 
+const sentenceWordId = ref<number | null>(null)
+const sentenceInput = ref('')
+const sentenceLoading = ref(false)
+const sentenceResult = ref<any>(null)
+
 const currentCard = computed(() => reviewQueue.value[reviewIndex.value] || null)
+
+const selectedSentenceWord = computed(() =>
+  bookList.value.find(w => w.vocabId === sentenceWordId.value) || null
+)
+
+const sentencePlaceholder = computed(() => {
+  const w = selectedSentenceWord.value?.word
+  return w
+    ? `请用 "${w}" 造一个英文句子，例如：I want to learn the word ${w} today.`
+    : '请先选择目标单词'
+})
 
 const statCards = computed(() => [
   { key: 'total', label: '生词本总量', value: stats.total },
@@ -326,6 +420,52 @@ const restartReview = () => {
 const onTabChange = (tab: string) => {
   if (tab === 'book') fetchBookList()
   if (tab === 'review') fetchReviewQueue()
+  if (tab === 'sentence') {
+    fetchBookList().then(() => {
+      if (!sentenceWordId.value && bookList.value.length) {
+        sentenceWordId.value = bookList.value[0].vocabId
+      }
+    })
+  }
+}
+
+const goSentencePractice = (card: BookItem | null) => {
+  if (!card) return
+  sentenceWordId.value = card.vocabId
+  sentenceInput.value = ''
+  sentenceResult.value = null
+  activeTab.value = 'sentence'
+}
+
+const checkSentence = async () => {
+  if (!sentenceWordId.value) {
+    ElMessage.warning('请先选择目标单词')
+    return
+  }
+  if (!sentenceInput.value.trim()) {
+    ElMessage.warning('请输入英文造句')
+    return
+  }
+  const word = selectedSentenceWord.value?.word?.toLowerCase()
+  if (word && !sentenceInput.value.toLowerCase().includes(word)) {
+    ElMessage.warning(`造句中请包含目标词 "${selectedSentenceWord.value?.word}"`)
+    return
+  }
+  sentenceLoading.value = true
+  sentenceResult.value = null
+  try {
+    const res = await axios.post('/api/grammar/correct', { text: sentenceInput.value.trim() })
+    if (res.data.code === 200) {
+      sentenceResult.value = res.data.data
+      ElMessage.success('T5 语法纠错完成')
+    } else {
+      ElMessage.error(res.data.message || '纠错失败')
+    }
+  } catch {
+    ElMessage.error('语法纠错服务不可用')
+  } finally {
+    sentenceLoading.value = false
+  }
 }
 
 const levelTag = (level: string) => {
@@ -374,7 +514,13 @@ onMounted(async () => {
 
 <style scoped>
 .vocab-learning { padding: 10px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.header-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tab-label-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .stats-row { margin-bottom: 0; }
 .stat-card { text-align: center; padding: 8px 0; }
 .stat-value { font-size: 28px; font-weight: bold; color: #409eff; }
@@ -441,5 +587,17 @@ onMounted(async () => {
 .card-meta { display: flex; gap: 8px; margin-top: 20px; }
 
 .review-actions { display: flex; justify-content: center; gap: 24px; }
+.review-sentence-link { text-align: center; margin-top: 12px; }
+.sentence-practice { max-width: 720px; }
+.example-ref { color: #606266; font-style: italic; line-height: 1.6; }
+.sentence-actions { text-align: right; margin-bottom: 12px; }
+.sentence-result {
+  padding: 14px;
+  background: #fdf6ec;
+  border: 1px solid #faecd8;
+  border-radius: 8px;
+  line-height: 1.7;
+}
+.sentence-result ul { margin: 8px 0 12px 20px; padding: 0; }
 .review-done, .review-empty { padding: 40px 0; }
 </style>

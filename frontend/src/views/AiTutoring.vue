@@ -1,11 +1,17 @@
 <template>
   <div class="ai-container">
+    <T5ModelBadge variant="banner" module="ai" />
+
     <el-card shadow="hover" class="chat-card">
       <template #header>
         <div class="card-header">
-          <span>AI 辅导学习助手</span>
+          <div class="title-block">
+            <span>AI 辅导学习助手</span>
+            <T5ModelBadge variant="tag" />
+          </div>
           <div class="header-tags">
             <el-tag v-if="lastSource === 'external'" type="success" size="small">外部 AI</el-tag>
+            <el-tag v-else-if="lastSource === 't5_gec'" type="warning" size="small">T5-GEC 响应中</el-tag>
             <el-tag v-else-if="lastSource === 'rule_engine'" type="info" size="small">规则引擎</el-tag>
             <el-tag type="success">在线互动</el-tag>
           </div>
@@ -35,13 +41,14 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import axios from 'axios'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
 
 const chatBox = ref<HTMLElement | null>(null)
 const inputText = ref('')
 const lastSource = ref('')
 
 const messages = ref([
-  { role: 'ai', content: '您好！我是您的专属 AI 英语辅导老师。请问有什么我可以帮您的吗？您可以问我单词意思、语法解析，或者让我帮您修改作文。' }
+  { role: 'ai', content: '您好！我是您的专属 AI 英语辅导老师。本模块已接入 T5-GEC 语法纠错模型（JFLEG 微调），您可以直接发送英文句子让我批改，也可以提问单词、语法等问题。' }
 ])
 
 const escapeHtml = (text: string) =>
@@ -61,6 +68,9 @@ const formatAiMessage = (content: string) => {
       }
       if (trimmed.startsWith('【') && trimmed.endsWith('】')) {
         return `<div class="ai-title">${escapeHtml(trimmed)}</div>`
+      }
+      if (/^模型：/.test(trimmed)) {
+        return `<div class="ai-model-tag">${escapeHtml(trimmed)}</div>`
       }
       if (trimmed === '────────────────────────') {
         return '<div class="ai-divider"></div>'
@@ -118,8 +128,9 @@ const scrollToBottom = () => {
 <style scoped>
 .ai-container { padding: 10px; height: 100%; }
 .chat-card { height: calc(100vh - 120px); display: flex; flex-direction: column; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.header-tags { display: flex; gap: 8px; align-items: center; }
+.card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.title-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.header-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .chat-box {
   flex: 1;
   overflow-y: auto;
@@ -159,6 +170,11 @@ const scrollToBottom = () => {
   font-weight: 600;
   color: #303133;
   margin-bottom: 10px;
+}
+.ai-content :deep(.ai-model-tag) {
+  font-size: 12px;
+  color: #e6a23c;
+  margin-bottom: 8px;
 }
 .ai-content :deep(.ai-section) {
   font-weight: 600;

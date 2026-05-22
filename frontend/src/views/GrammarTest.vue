@@ -1,5 +1,7 @@
 <template>
   <div class="grammar-test-container">
+    <T5ModelBadge variant="banner" module="grammar" />
+
     <el-card shadow="hover" v-loading="loading">
       <template #header>
         <div class="card-header">
@@ -7,6 +9,7 @@
             <el-button link type="primary" icon="ArrowLeft" @click="goBack">返回语法库</el-button>
             <span class="test-title">{{ grammar?.title || '语法测试' }}</span>
             <el-tag v-if="grammar?.category" size="small">{{ grammar.category }}</el-tag>
+            <T5ModelBadge variant="tag" />
           </div>
         </div>
       </template>
@@ -35,6 +38,22 @@
 
       <div v-if="questions.length" class="submit-row">
         <el-button type="primary" :loading="submitting" @click="submitTest">提交答案</el-button>
+      </div>
+
+      <el-divider v-if="questions.length">造句练习 · T5 语法纠错</el-divider>
+      <div v-if="questions.length" class="sentence-practice">
+        <p class="practice-hint">用本语法点造一个英文句子，提交后由 T5-GEC 模型纠错：</p>
+        <el-input v-model="practiceSentence" type="textarea" :rows="2" placeholder="例如：If I were you, I would study harder." />
+        <div class="practice-actions">
+          <el-button type="warning" :loading="practiceLoading" @click="checkSentence">提交造句纠错</el-button>
+        </div>
+        <div v-if="practiceResult" class="practice-result">
+          <p><strong>修改后：</strong>{{ practiceResult.corrected }}</p>
+          <ul v-if="practiceResult.issues?.length">
+            <li v-for="(issue, idx) in practiceResult.issues" :key="idx">{{ issue.message }}</li>
+          </ul>
+          <el-tag size="small">{{ practiceResult.source }}</el-tag>
+        </div>
       </div>
     </el-card>
 
@@ -69,6 +88,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import T5ModelBadge from '../components/T5ModelBadge.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,6 +101,9 @@ const questions = ref<any[]>([])
 const answers = ref<string[]>([])
 const score = ref(0)
 const resultDetails = ref<any[]>([])
+const practiceSentence = ref('')
+const practiceLoading = ref(false)
+const practiceResult = ref<any>(null)
 
 const grammarId = () => Number(route.query.id)
 
@@ -119,6 +142,30 @@ const retryTest = () => {
   answers.value = Array(questions.value.length).fill('')
   score.value = 0
   resultDetails.value = []
+  practiceSentence.value = ''
+  practiceResult.value = null
+}
+
+const checkSentence = async () => {
+  if (!practiceSentence.value.trim()) {
+    ElMessage.warning('请先输入造句')
+    return
+  }
+  practiceLoading.value = true
+  practiceResult.value = null
+  try {
+    const res = await axios.post('/api/grammar/correct', { text: practiceSentence.value.trim() })
+    if (res.data.code === 200) {
+      practiceResult.value = res.data.data
+      ElMessage.success('T5 语法纠错完成')
+    } else {
+      ElMessage.error(res.data.message || '纠错失败')
+    }
+  } catch {
+    ElMessage.error('语法纠错服务不可用')
+  } finally {
+    practiceLoading.value = false
+  }
 }
 
 const submitTest = async () => {
@@ -156,6 +203,11 @@ const submitTest = async () => {
 .options-group .el-radio { margin-right: 0; white-space: normal; display: flex; align-items: flex-start; }
 .options-group :deep(.el-radio__label) { text-align: left; line-height: 1.5; padding-left: 10px; }
 .submit-row { margin-top: 10px; text-align: right; }
+.sentence-practice { margin-top: 8px; padding: 16px; background: #fafafa; border-radius: 8px; }
+.practice-hint { color: #606266; margin: 0 0 10px; font-size: 14px; }
+.practice-actions { margin-top: 10px; text-align: right; }
+.practice-result { margin-top: 12px; line-height: 1.7; }
+.practice-result ul { margin: 8px 0; padding-left: 20px; }
 .key-item { margin-bottom: 8px; }
 .label { font-weight: bold; color: #606266; margin-right: 8px; }
 .explanation { color: #666; line-height: 1.6; }

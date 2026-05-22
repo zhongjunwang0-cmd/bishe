@@ -39,6 +39,7 @@ def load_paths() -> dict[str, str]:
         "CV_MAX_ROWS",
         "CV_MIN_DURATION_SEC",
         "CV_MAX_DURATION_SEC",
+        "CV_CALIB_MAX_SAMPLES",
         "OUTPUT_DIR",
     ]
     out: dict[str, str] = {}
@@ -58,6 +59,7 @@ def load_paths() -> dict[str, str]:
         "CV_MAX_ROWS": "1500",
         "CV_MIN_DURATION_SEC": "1.0",
         "CV_MAX_DURATION_SEC": "10.0",
+        "CV_CALIB_MAX_SAMPLES": "200",
         "OUTPUT_DIR": str(ROOT / "data" / "processed"),
     }
     for k, v in defaults.items():

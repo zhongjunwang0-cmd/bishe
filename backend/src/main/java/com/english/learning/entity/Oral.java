@@ -13,6 +13,8 @@ public class Oral implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String topic;
+    /** English sentence for Whisper+WER pronunciation scoring */
+    private String referenceText;
     private Integer score;
     private Integer attempts;
     private LocalDateTime createTime;

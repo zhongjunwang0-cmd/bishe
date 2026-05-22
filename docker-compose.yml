@@ -31,6 +31,8 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SPRING_DATA_REDIS_HOST=redis
+      # Host ai-service must run separately with trained models (see docs/DEPLOYMENT.md):
+      # ml/scripts/run_train_dl.py + GRAMMAR_RULE_ONLY=0
       - AI_SERVICE_URL=http://host.docker.internal:8000
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -1,5 +1,27 @@
 # 毕设数据集 → 模型 → 接入说明
 
+## 答辩 / 生产部署（深度学习默认开启）
+
+**必须** 在启动 `ai-service` 前完成训练，并设置 `GRAMMAR_RULE_ONLY=0`（代码默认已是 `0`）：
+
+```powershell
+cd Brix_English-Learning-System\ml
+pip install -r requirements.txt
+python scripts/run_prepare_all.py      # 首次：采样 JFLEG / EdNet / CV
+python scripts/prepare_ednet_dkt.py    # 构建 DKT 序列
+python scripts/run_train_dl.py         # train_dkt.py + train_jfleg.py
+python scripts/verify_dl_deploy.py     # 验收 dkt_model.pt + grammar_t5/
+```
+
+详细说明见 **[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)** 与 CI 工作流 `.github/workflows/ml-models.yml`。
+
+| 模型 | 训练脚本 | 推理接口 | 禁用深度学习时 |
+|------|----------|----------|----------------|
+| LSTM-DKT | `train_dkt.py` | `POST /api/kt/recommend` | 回退 GBDT / 规则 |
+| T5-GEC | `train_jfleg.py` | `POST /api/grammar/correct` | `GRAMMAR_RULE_ONLY=1` 规则兜底 |
+
+---
+
 本地路径（你的机器）与 Kaggle 源：
 
 | 数据集 | 本地路径 | Kaggle |
@@ -25,9 +47,9 @@ F:\bishe\JFLEG\
 本地路径：`F:\bishe\JFLEG`（`validation.csv` + `test.csv`）  
 Kaggle：[jfleg-english-grammatical-error-benchmark](https://www.kaggle.com/datasets/thedevastator/jfleg-english-grammatical-error-benchmark)
 
-## 快速接入（无需 GPU 训练）
+## 快速联调（仅开发，非答辩环境）
 
-默认只采样 **1200 句** 子集，不拉全量数据；推理默认 **规则兜底**，对外展示 **T5-GEC** 标签。
+默认采样 **1200 句** 子集；**不训练** 时可用规则兜底（`GRAMMAR_RULE_ONLY=1`）。答辩演示请改用上文「答辩 / 生产部署」流程。
 
 ```powershell
 cd Brix_English-Learning-System\ml
@@ -36,10 +58,10 @@ pip install -r requirements.txt
 # 1. 从 F:\bishe\JFLEG 采样 → ml/data/processed/jfleg_subset.jsonl
 python scripts/prepare_jfleg.py
 
-# 2. 写入 T5 元数据（不下载权重、不训练）
+# 2. 写入 T5 元数据（不下载权重、不训练）— 仅开发
 python scripts/stub_grammar_model.py
 
-# 3. 启动 ai-service（规则兜底 + T5-GEC 标识）
+# 3. 启动 ai-service（开发：规则兜底）
 cd ..\ai-service
 pip install -r requirements.txt
 $env:GRAMMAR_RULE_ONLY="1"
@@ -53,11 +75,11 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/api/grammar/correct -H "Content-Type: application/json" -d "{\"text\":\"he like doges\"}"
 ```
 
-## 可选：真实 T5 微调
+## 生产：真实 T5 微调（答辩必做，含于 run_train_dl.py）
 
 ```powershell
 python scripts/train_jfleg.py
-# 关闭规则模式，加载真实权重
+# 深度学习推理（默认 GRAMMAR_RULE_ONLY=0）
 $env:GRAMMAR_RULE_ONLY="0"
 ```
 
@@ -158,26 +180,33 @@ python scripts/run_prepare_all.py
 - `ml/data/processed/ednet_user_module_features.parquet`
 - `ml/data/processed/common_voice_manifest.csv`
 
-## 训练（示例）
+## 训练（答辩 / 生产必做）
 
 ```powershell
-# EdNet → DKT 深度知识追踪（LSTM，论文主模型）
+# 一键：DKT + T5-GEC（推荐）
+python scripts/run_train_dl.py
+
+# 或分步：
 python scripts/prepare_ednet_dkt.py
 python scripts/train_dkt.py
+python scripts/train_jfleg.py
 
 # 可选：GBDT 备用模型
 python scripts/train_kt_recommend.py
 
-# JFLEG → 在 Colab / 本机 GPU 微调 T5（可选 train_jfleg.py）
-# 或 stub_grammar_model.py 仅写元数据 + GRAMMAR_RULE_ONLY=1 规则推理
-# Common Voice → stub_pronunciation_model.py 快速接入；有音频时 train_pronunciation.py 标定
+# 验收
+python scripts/verify_dl_deploy.py
 ```
 
-## 推理服务
+开发联调可跳过训练，使用 `stub_grammar_model.py` + `GRAMMAR_RULE_ONLY=1`（**不得**作为答辩配置）。
+Common Voice → `stub_pronunciation_model.py` 快速接入；有音频时 `train_pronunciation.py` 标定。
+
+## 推理服务（生产：GRAMMAR_RULE_ONLY=0）
 
 ```powershell
 cd ..\ai-service
 pip install -r requirements.txt
+$env:GRAMMAR_RULE_ONLY="0"
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 

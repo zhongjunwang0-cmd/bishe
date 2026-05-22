@@ -9,6 +9,9 @@
 - **Container**: Docker + Docker Compose
 
 ## How to Run
+
+### 1. Docker（Web 应用）
+
 1. 确保 Docker Desktop 已启动。
 2. 在根目录（包含 `docker-compose.yml` 的目录）执行：
    ```bash
@@ -16,9 +19,28 @@
    ```
 3. 等待容器启动完成后，访问服务。
 
+### 2. AI 深度学习服务（答辩 / 生产必做）
+
+系统 **默认启用深度学习推理**（LSTM-DKT + T5-GEC），不是纯规则引擎。部署前必须训练模型并启动 `ai-service`：
+
+```powershell
+cd ml
+pip install -r requirements.txt
+python scripts/run_train_dl.py          # train_dkt.py + train_jfleg.py
+python scripts/verify_dl_deploy.py    # 验收权重与 GRAMMAR_RULE_ONLY=0
+
+cd ..\ai-service
+pip install -r requirements.txt
+$env:GRAMMAR_RULE_ONLY="0"             # 默认值，建议显式设置
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+完整步骤与 health 检查见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
+
 ## Services
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8080
+- **AI Service** (需单独启动): http://localhost:8000
 
 ## Verification
 1. 访问 `http://localhost:3000` 并使用管理员账号（`admin` / `123456`）登录。
@@ -40,10 +62,9 @@
 
 ## 🌟 系统特色
 - **采用RBAC权限模型**：实现多角色（管理员、教师、普通用户）精细化权限控制。
-- **集成 AI 智能辅导（规则引擎，无外部 API 依赖）**：系统采用完全离线的 AI 辅导实现，无需 OpenAI 等外部 LLM API，
-  保证一键 Docker 部署、数据安全和零网络依赖。AI 能力分两层：
-  ① **个性化分析**：读取用户真实学习记录，动态统计学习时长、活跃模块分布、薄弱环节，生成定制化学习建议；
-  ② **知识问答引擎**：覆盖词汇记忆、语法讲解、阅读策略、听力提升、写作技巧、口语训练、四六级/雅思/托福备考等 7 大领域的规则引擎。
+- **集成 AI 智能辅导（深度学习 + 规则兜底）**：Python `ai-service` 提供两条 **必须训练** 的深度学习链路——
+  **EdNet LSTM-DKT** 薄弱模块推荐、**JFLEG T5-GEC** 语法纠错；部署须执行 `train_dkt.py`、`train_jfleg.py` 并保持 `GRAMMAR_RULE_ONLY=0`（详见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)）。
+  Spring Boot 通过 `ai.service.base-url` 代理调用。另有离线知识问答规则引擎（词汇/语法讲解等），与上述模型互补。
 - **支持 Redis 缓存优化，全模块覆盖**：所有高频只读列表接口（词汇、语法、文献、阅读理解、听力、选词填空、口语共 7 个模块）
   均已通过 Spring `@Cacheable` 注解接入 Redis，TTL=1 小时；新增和删除操作通过 `@CacheEvict` 自动失效，确保数据一致性，
   无需手动刷新缓存。

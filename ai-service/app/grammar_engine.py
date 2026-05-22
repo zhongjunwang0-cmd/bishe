@@ -1,8 +1,8 @@
 """
 Grammar correction: fine-tuned T5 -> base T5 (local cache) -> rule fallback.
 
-Set GRAMMAR_RULE_ONLY=1 (default) to skip heavy inference and use rules while
-reporting source T5-GEC for demo / thesis integration.
+Set GRAMMAR_RULE_ONLY=1 only for lightweight dev without T5 weights.
+Production / thesis deployment must run train_jfleg.py and keep GRAMMAR_RULE_ONLY=0.
 """
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def _third_person_form(verb: str) -> str:
 
 
 def _rule_only_mode() -> bool:
-    return os.getenv("GRAMMAR_RULE_ONLY", "1").strip().lower() in ("1", "true", "yes")
+    return os.getenv("GRAMMAR_RULE_ONLY", "0").strip().lower() in ("1", "true", "yes")
 
 
 class GrammarEngine:

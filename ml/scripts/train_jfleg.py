@@ -181,6 +181,7 @@ def main() -> None:
         "test_samples": len(test_rows),
         "test_exact_match": round(test_exact, 4),
         "epochs": EPOCHS,
+        "inference_mode": "fine_tuned",
     }
     (ROOT / "models" / "grammar_t5_meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"

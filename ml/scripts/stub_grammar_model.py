@@ -1,8 +1,8 @@
 """
 Create T5-GEC metadata stub without downloading weights or training.
 
-Use after prepare_jfleg.py so ai-service reports fine_tuned / T5-GEC while
-GRAMMAR_RULE_ONLY=1 handles inference via rules.
+Dev-only: use with GRAMMAR_RULE_ONLY=1. Production / thesis must run train_jfleg.py
+and keep GRAMMAR_RULE_ONLY=0.
 """
 from __future__ import annotations
 

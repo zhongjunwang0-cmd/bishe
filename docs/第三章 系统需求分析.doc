@@ -1,0 +1,248 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>第三章 系统需求分析</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+@page { size: 21cm 29.7cm; margin: 2.54cm 3.17cm 2.54cm 3.17cm; }
+body { font-family: 宋体, SimSun, serif; font-size: 12pt; line-height: 1.5; }
+h1 { font-family: 黑体, SimHei, sans-serif; font-size: 16pt; text-align: center; font-weight: bold; margin: 24pt 0 18pt 0; }
+h2 { font-family: 黑体, SimHei, sans-serif; font-size: 14pt; font-weight: bold; margin: 18pt 0 12pt 0; }
+h3 { font-family: 黑体, SimHei, sans-serif; font-size: 12pt; font-weight: bold; margin: 12pt 0 6pt 0; }
+p { text-indent: 2em; margin: 0 0 6pt 0; text-align: justify; }
+p.no-indent { text-indent: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12pt 0; font-size: 10.5pt; }
+th, td { border: 1px solid #000; padding: 4pt 6pt; vertical-align: top; }
+th { background: #f0f0f0; font-weight: bold; text-align: center; }
+.caption { text-indent: 0; text-align: center; font-size: 10.5pt; margin: 6pt 0 12pt 0; }
+.figure { text-align: center; margin: 12pt 0; font-family: 宋体; font-size: 10.5pt; border: 1px solid #ccc; padding: 12pt; background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>第三章&nbsp;&nbsp;系统需求分析</h1>
+
+<p>本章在前两章对研究背景与技术选型的说明基础上，从使用场景出发梳理系统需求，给出概要设计方案，并完成数据库的逻辑结构设计。内容按“需求分析—概要设计—数据库设计”三部分组织，为后续详细设计与实现提供依据。</p>
+
+<h2>3.1&nbsp;&nbsp;需求分析</h2>
+
+<h3>3.1.1&nbsp;&nbsp;建设背景与目标</h3>
+
+<p>国内高校与自学群体对英语训练的需求集中在词汇积累、语法巩固、阅读与听力刷题、口语跟读及学习进度跟踪等方面。现有平台往往把上述能力拆散到不同产品中，个性化推荐薄弱，学习数据也难以统一沉淀。本系统面向上述痛点，建设一个可本地部署的 Web 学习平台：普通用户完成日常练习，教师维护题库与教学内容，管理员负责用户与系统配置；同时接入基于 EdNet 训练的 LSTM 深度知识追踪（DKT）模型与 JFLEG 微调的 T5 语法纠错模型，在记录学习行为的基础上给出模块推荐与语法辅导。</p>
+
+<p>系统建设目标可归纳为四点：（1）覆盖词汇、语法、阅读、听力、填空、口语等常见训练模块；（2）按角色划分权限，保证内容维护与学习使用互不干扰；（3）持久化学习记录，支持统计与周计划跟踪；（4）通过独立 AI 推理服务提供推荐与纠错，业务后端以 HTTP 方式调用，便于部署与替换模型。</p>
+
+<h3>3.1.2&nbsp;&nbsp;用户角色与使用场景</h3>
+
+<p>系统采用 RBAC 权限模型，划分三类主要角色，如表 3-1 所示。</p>
+
+<p class="caption">表 3-1&nbsp;&nbsp;系统用户角色说明</p>
+<table>
+<tr><th>角色</th><th>典型用户</th><th>主要场景</th></tr>
+<tr><td>普通用户（USER）</td><td>在校学生、自学者</td><td>按模块练习、查看生词本与周计划、提交成绩、参与讨论、使用 AI 辅导</td></tr>
+<tr><td>教师（TEACHER）</td><td>任课教师</td><td>维护词汇/语法/文献/口语题目，管理题库模板，审核讨论内容</td></tr>
+<tr><td>管理员（ADMIN）</td><td>系统运维人员</td><td>用户与角色管理、系统参数（含 AI 接口）配置、全模块内容维护</td></tr>
+</table>
+
+<p>普通用户登录后进入首页，可查看本周学习计划与各模块入口；练习过程中系统写入学习记录，并更新词汇掌握度与复习时间。教师侧重“教”侧内容录入，不介入用户账号管理。管理员拥有最高权限，用于演示环境与答辩环境的统一维护。</p>
+
+<h3>3.1.3&nbsp;&nbsp;功能性需求</h3>
+
+<p>结合前端路由与后端接口，将功能需求按模块归纳如表 3-2。表中“优先级”取高（答辩演示必备）、中（增强体验）、低（辅助功能）三级。</p>
+
+<p class="caption">表 3-2&nbsp;&nbsp;主要功能需求列表</p>
+<table>
+<tr><th>编号</th><th>功能模块</th><th>需求描述</th><th>优先级</th></tr>
+<tr><td>F1</td><td>用户认证</td><td>用户名密码登录，Shiro 会话管理；支持修改个人档案（水平、目标考试、每日目标）</td><td>高</td></tr>
+<tr><td>F2</td><td>词汇学习</td><td>按难度浏览词库，加入生词本；艾宾浩斯复习阶段与下次复习时间</td><td>高</td></tr>
+<tr><td>F3</td><td>语法学习</td><td>语法知识点浏览；写作句子提交至 AI 服务进行 T5 语法纠错</td><td>高</td></tr>
+<tr><td>F4</td><td>阅读理解</td><td>从题库随机抽题，作答后自动判分并写入记录</td><td>高</td></tr>
+<tr><td>F5</td><td>听力训练</td><td>播放音频，完成选择题；支持题目与原文展示</td><td>高</td></tr>
+<tr><td>F6</td><td>选词填空</td><td>完形填空式练习，统计得分</td><td>高</td></tr>
+<tr><td>F7</td><td>口语练习</td><td>按话题跟读，结合 Whisper 计算字错率（WER）给出发音反馈</td><td>中</td></tr>
+<tr><td>F8</td><td>文献阅读</td><td>阅读英文短文及译文，辅助拓展阅读</td><td>中</td></tr>
+<tr><td>F9</td><td>学习记录</td><td>按类型汇总时长、得分；为 DKT 推荐提供模块正确率输入</td><td>高</td></tr>
+<tr><td>F10</td><td>周学习计划</td><td>按用户档案生成周任务；支持 AI 推荐模块写入计划项</td><td>中</td></tr>
+<tr><td>F11</td><td>讨论区</td><td>对词汇、语法、文献发表评论；教师/管理员可管理</td><td>中</td></tr>
+<tr><td>F12</td><td>AI 智能辅导</td><td>调用 LSTM-DKT 推荐薄弱模块；语法纠错与离线规则问答互补</td><td>高</td></tr>
+<tr><td>F13</td><td>后台管理</td><td>用户、题库、各模块 CRUD；系统配置（API 密钥等）</td><td>高</td></tr>
+</table>
+
+<p>用例层面，普通用户的核心路径为：登录 → 选择模块练习 → 提交答案 → 查看记录与推荐。教师路径为：登录 → 进入管理端 → 维护题库或语法/词汇 → 保存后前台可见。两条路径共用同一套后端 API，通过角色权限过滤可访问的 Controller 与菜单。</p>
+
+<h3>3.1.4&nbsp;&nbsp;非功能性需求</h3>
+
+<p>（1）<b>性能</b>：词汇、语法、阅读等列表接口访问频繁，采用 Redis 缓存只读列表，TTL 约 1 小时，写操作触发缓存失效，避免脏读。（2）<b>安全</b>：密码 BCrypt 存储；接口经 Shiro 鉴权；管理员配置项不入前端源码。（3）<b>可部署性</b>：提供 Docker Compose 一键启动 MySQL、Redis、前后端；AI 服务独立进程，通过环境变量指定模型目录与 `AI_SERVICE_URL`。（4）<b>可维护性</b>：前后端分离，REST/JSON 通信；题库题目与答案以 JSON 字段存储，减少拆表复杂度。（5）<b>兼容性</b>：前端支持 Chrome、Edge 等现代浏览器；后端基于 Java 17 与 Spring Boot 3。</p>
+
+<h2>3.2&nbsp;&nbsp;概要设计</h2>
+
+<h3>3.2.1&nbsp;&nbsp;总体架构</h3>
+
+<p>系统采用 Browser/Server 结构，分为用户层、表现层、业务层、数据层与智能推理层五部分，如图 3-1 所示。</p>
+
+<div class="figure">
+<p class="no-indent"><b>图 3-1&nbsp;&nbsp;系统逻辑架构（示意）</b></p>
+<p class="no-indent">┌─────────────┐</p>
+<p class="no-indent">│&nbsp;&nbsp;浏览器客户端&nbsp;&nbsp;│</p>
+<p class="no-indent">└──────┬──────┘</p>
+<p class="no-indent">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ HTTP</p>
+<p class="no-indent">┌──────▼──────────────────────────┐</p>
+<p class="no-indent">│ Vue 3 + Element Plus（Nginx 托管）│</p>
+<p class="no-indent">└──────┬──────────────────────────┘</p>
+<p class="no-indent">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ REST / JSON</p>
+<p class="no-indent">┌──────▼──────────────────────────┐</p>
+<p class="no-indent">│ Spring Boot 3 + Shiro + MyBatis-Plus │</p>
+<p class="no-indent">│ Spring Cache ──► Redis 7            │</p>
+<p class="no-indent">└──────┬───────────────┬───────────┘</p>
+<p class="no-indent">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│ JDBC            │ HTTP 代理</p>
+<p class="no-indent">┌──────▼──────┐   ┌────▼─────────────┐</p>
+<p class="no-indent">│ MySQL 8.0   │   │ ai-service (FastAPI)│</p>
+<p class="no-indent">│ 业务数据持久化 │   │ LSTM-DKT / T5-GEC  │</p>
+<p class="no-indent">└─────────────┘   │ Whisper-WER        │</p>
+<p class="no-indent">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────────────────┘</p>
+</div>
+
+<p class="caption">图 3-1&nbsp;&nbsp;系统逻辑架构示意图</p>
+
+<p>表现层负责页面渲染与表单校验；业务层封装用户、题库、记录等领域逻辑，并代理 AI 请求；数据层负责持久化与缓存；智能推理层单独加载 PyTorch 权重，避免在 JVM 内嵌深度学习框架。该分层使 Web 业务与模型迭代解耦：更换 T5  checkpoint 时只需重启 ai-service。</p>
+
+<h3>3.2.2&nbsp;&nbsp;功能模块划分</h3>
+
+<p>按职责将系统划分为七个子系统，模块关系如表 3-3。</p>
+
+<p class="caption">表 3-3&nbsp;&nbsp;功能模块划分</p>
+<table>
+<tr><th>模块</th><th>职责</th><th>主要技术组件</th></tr>
+<tr><td>认证与权限</td><td>登录、会话、RBAC 菜单与接口拦截</td><td>Apache Shiro、UserRealm</td></tr>
+<tr><td>学习内容</td><td>词汇、语法、文献的 CRUD 与前台展示</td><td>Vocab/Grammar/Literature Service</td></tr>
+<tr><td>测评练习</td><td>阅读、听力、填空、口语的抽题、判分、计分</td><td>QuestionBank、各模块 Service</td></tr>
+<tr><td>学习跟踪</td><td>记录写入、模块统计、周计划生成与完成标记</td><td>LearningRecord、LearningPlanItem</td></tr>
+<tr><td>社区互动</td><td>讨论发表评论，按 target_type 关联学习内容</td><td>Discuss Service</td></tr>
+<tr><td>智能辅导</td><td>DKT 推荐、T5 纠错、发音评测、规则问答</td><td>AiModelClient → ai-service</td></tr>
+<tr><td>系统管理</td><td>用户管理、系统配置、工具集成检测</td><td>AdminSystemController、SysConfig</td></tr>
+</table>
+
+<p>前端采用 Vue Router 按角色加载路由：普通用户可见学习类页面，管理类路由挂载在 `/admin` 下并做权限守卫。后端 Controller 与 Service 一一对应业务模块，MyBatis-Plus Mapper 访问 MySQL 表，命名与表前缀保持一致（`sys_` 系统表、`biz_` 业务表）。</p>
+
+<h3>3.2.3&nbsp;&nbsp;核心业务流程</h3>
+
+<p><b>（1）练习与记录流程。</b>用户在前端请求 `/generate` 类接口获取题目实例（阅读/听力/填空从 `biz_question_bank` 随机抽取并写入实例表）。答题完成后提交答案 JSON，后端比对 `answers_json` 计算得分，插入 `biz_learning_record`（含 type、target_id、duration、score），并返回结果。该记录随后参与首页统计与 DKT 模块正确率汇总。</p>
+
+<p><b>（2）词汇复习流程。</b>用户将单词加入生词本时写入 `biz_user_vocab`，初始状态为 NEW。每次复习根据答题情况更新 `mastery_level` 与 `review_stage`，并按艾宾浩斯间隔计算 `next_review_time`。前台词汇页优先展示到期复习项。</p>
+
+<p><b>（3）AI 推荐流程。</b>后端从学习记录聚合各模块（VOCAB、GRAMMAR、READING 等）的 attempts 与 accuracy，组装为 JSON 调用 ai-service 的 `/api/kt/recommend`。DKT 模型返回薄弱模块排序后，可写入 `biz_learning_plan_item`（source=ai_recommend），用户在个人中心查看本周建议任务。</p>
+
+<p><b>（4）语法纠错流程。</b>用户在语法练习页提交英文句子，后端转发至 `/api/grammar/correct`；T5-GEC 返回纠正句与修改说明，前端高亮差异。若模型未加载，可降级为规则引擎（仅开发环境，答辩环境要求加载微调权重）。</p>
+
+<h3>3.2.4&nbsp;&nbsp;接口与部署概要</h3>
+
+<p>对外接口遵循 REST 风格，统一前缀 `/api`，响应体封装 code、message、data。主要接口分组包括：`/api/user`（用户）、`/api/vocab`、`/api/grammar`、`/api/reading`、`/api/listening`、`/api/cloze`、`/api/oral`（练习模块）、`/api/record`（记录）、`/api/stats`（统计）、`/api/admin`（管理）。AI 相关由 Spring Boot 内部转发，不直接暴露 Python 端口给浏览器。</p>
+
+<p>部署上，生产环境使用 Docker Compose 启动 mysql、redis、backend、frontend 四个容器；ai-service 在宿主机或单独容器运行，backend 通过 `AI_SERVICE_URL` 访问。数据库初始化脚本 `mysql/init/init.sql` 创建库表并插入演示账号与样例词汇，便于答辩现场快速还原环境。</p>
+
+<h2>3.3&nbsp;&nbsp;数据库设计</h2>
+
+<h3>3.3.1&nbsp;&nbsp;概念结构设计</h3>
+
+<p>数据库名称为 `english_learning`，字符集 utf8mb4。实体可归纳为四类：</p>
+
+<p class="no-indent">（1）<b>权限实体</b>：用户（sys_user）、角色（sys_role）、权限（sys_permission）及角色—权限关联（sys_role_permission）。用户与角色多对一，角色与权限多对多。</p>
+
+<p class="no-indent">（2）<b>内容实体</b>：词汇（biz_vocab）、语法（biz_grammar）、文献（biz_literature）、口语话题（biz_oral）、题库模板（biz_question_bank）。其中题库模板为阅读/听力/填空的抽题来源，与实例表为一对多关系。</p>
+
+<p class="no-indent">（3）<b>学习过程实体</b>：用户生词（biz_user_vocab）、练习实例（biz_reading、biz_listening、biz_cloze）、学习记录（biz_learning_record）、周计划项（biz_learning_plan_item）。用户与生词为多对多（通过 biz_user_vocab 关联词汇）；用户与学习记录为一对多。</p>
+
+<p class="no-indent">（4）<b>交互与配置实体</b>：讨论（biz_discuss）通过 target_type、target_id 多态关联内容；系统配置（sys_config）以键值对存储 AI 与第三方 API 参数。</p>
+
+<p>图 3-2 给出主要实体之间的联系（省略权限细表）。</p>
+
+<div class="figure">
+<p class="no-indent"><b>图 3-2&nbsp;&nbsp;主要 E-R 关系（文字描述）</b></p>
+<p class="no-indent">sys_user ──1:N──► biz_user_vocab ──N:1──► biz_vocab</p>
+<p class="no-indent">sys_user ──1:N──► biz_learning_record</p>
+<p class="no-indent">sys_user ──1:N──► biz_learning_plan_item</p>
+<p class="no-indent">sys_user ──1:N──► biz_discuss</p>
+<p class="no-indent">biz_question_bank ──1:N──► biz_reading / biz_listening / biz_cloze</p>
+<p class="no-indent">sys_role ──1:N──► sys_user</p>
+</div>
+
+<p class="caption">图 3-2&nbsp;&nbsp;核心实体联系示意</p>
+
+<h3>3.3.2&nbsp;&nbsp;逻辑结构设计</h3>
+
+<p>全库共 18 张表（含关联表）。命名规则：系统表前缀 `sys_`，业务表前缀 `biz_`。主键均为 BIGINT 自增；时间字段 create_time、update_time 采用 DATETIME，由 MyBatis-Plus 自动填充。题目与选项结构较灵活，在实例表与题库表中使用 JSON 类型字段 `questions_json`、`answers_json` 存储，避免为每道小题单独建表。</p>
+
+<p>索引设计遵循查询路径：biz_learning_plan_item 建立 (user_id, week_start) 与 (user_id, plan_date) 组合索引，支撑周计划列表；biz_user_vocab 建立 (user_id, vocab_id) 唯一约束，防止重复收藏。外键在应用层维护，未在 MySQL 层强制声明，以便初始化脚本与迁移脚本执行顺序更灵活。</p>
+
+<h3>3.3.3&nbsp;&nbsp;主要数据表说明</h3>
+
+<p>表 3-4 至表 3-6 列出核心表字段，其余表结构见初始化脚本。</p>
+
+<p class="caption">表 3-4&nbsp;&nbsp;sys_user 用户表</p>
+<table>
+<tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+<tr><td>id</td><td>BIGINT</td><td>主键</td></tr>
+<tr><td>username</td><td>VARCHAR(50)</td><td>登录名，唯一</td></tr>
+<tr><td>password</td><td>VARCHAR(255)</td><td>BCrypt 密文</td></tr>
+<tr><td>nickname</td><td>VARCHAR(50)</td><td>显示昵称</td></tr>
+<tr><td>role_id</td><td>BIGINT</td><td>关联 sys_role</td></tr>
+<tr><td>level</td><td>VARCHAR(20)</td><td>英语等级，默认 B1</td></tr>
+<tr><td>target_exam</td><td>VARCHAR(20)</td><td>目标考试 CET-4/IELTS 等</td></tr>
+<tr><td>daily_goal</td><td>INT</td><td>每日学习目标（分钟）</td></tr>
+</table>
+
+<p class="caption">表 3-5&nbsp;&nbsp;biz_learning_record 学习记录表</p>
+<table>
+<tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+<tr><td>id</td><td>BIGINT</td><td>主键</td></tr>
+<tr><td>user_id</td><td>BIGINT</td><td>用户 ID</td></tr>
+<tr><td>type</td><td>VARCHAR(20)</td><td>模块类型 VOCAB/READING 等</td></tr>
+<tr><td>target_id</td><td>BIGINT</td><td>关联练习或词汇 ID</td></tr>
+<tr><td>duration</td><td>INT</td><td>学习时长（秒）</td></tr>
+<tr><td>score</td><td>INT</td><td>得分，可空</td></tr>
+<tr><td>create_time</td><td>DATETIME</td><td>记录时间</td></tr>
+</table>
+
+<p class="caption">表 3-6&nbsp;&nbsp;biz_question_bank 题库模板表</p>
+<table>
+<tr><th>字段名</th><th>类型</th><th>说明</th></tr>
+<tr><td>id</td><td>BIGINT</td><td>主键</td></tr>
+<tr><td>module_type</td><td>VARCHAR(20)</td><td>READING/LISTENING/CLOZE</td></tr>
+<tr><td>title</td><td>VARCHAR(255)</td><td>题集标题</td></tr>
+<tr><td>content</td><td>TEXT</td><td>文章或听力原文</td></tr>
+<tr><td>audio_url</td><td>VARCHAR(255)</td><td>听力音频地址</td></tr>
+<tr><td>questions_json</td><td>JSON</td><td>题目与选项数组</td></tr>
+<tr><td>answers_json</td><td>JSON</td><td>标准答案与解析</td></tr>
+<tr><td>status</td><td>VARCHAR(20)</td><td>Active/Inactive</td></tr>
+</table>
+
+<p class="caption">表 3-7&nbsp;&nbsp;其余业务表概要</p>
+<table>
+<tr><th>表名</th><th>用途</th><th>关键字段</th></tr>
+<tr><td>biz_vocab</td><td>词库</td><td>word, phonetic, translation, level</td></tr>
+<tr><td>biz_user_vocab</td><td>生词本与复习</td><td>mastery_level, review_stage, next_review_time</td></tr>
+<tr><td>biz_grammar</td><td>语法知识</td><td>title, category, content</td></tr>
+<tr><td>biz_literature</td><td>文献阅读</td><td>title, content, translation, author</td></tr>
+<tr><td>biz_reading / biz_listening / biz_cloze</td><td>练习实例</td><td>bank_id, questions_json, score</td></tr>
+<tr><td>biz_oral</td><td>口语话题</td><td>topic, reference_text, score, attempts</td></tr>
+<tr><td>biz_learning_plan_item</td><td>周计划任务</td><td>week_start, module, source, completed</td></tr>
+<tr><td>biz_discuss</td><td>讨论评论</td><td>target_type, target_id, content</td></tr>
+<tr><td>sys_config</td><td>系统配置</td><td>config_key, config_value</td></tr>
+</table>
+
+<p>数据一致性方面：删除题库模板前需确认无进行中的实例引用；用户删除采用逻辑约束由应用层校验关联记录。JSON 字段在 Java 端通过 Jackson 与 DTO 映射，保证前后端题目结构一致。初始化脚本同时写入 admin/teacher/user 三个演示账号及少量 CET-6、IELTS 词汇，满足本地与 Docker 首次启动即可演示的需求。</p>
+
+<h3>3.3.4&nbsp;&nbsp;本章小结</h3>
+
+<p>本章明确了英语学习系统的角色划分与 13 项主要功能，给出了五层逻辑架构与四类核心业务流程，并完成 18 张数据表的逻辑说明。需求与表结构均与当前代码仓库（Spring Boot 3 + Vue 3 + MySQL + Redis + ai-service）保持一致，下一章将在此基础上展开各模块的详细设计与关键实现。</p>
+
+</body>
+</html>

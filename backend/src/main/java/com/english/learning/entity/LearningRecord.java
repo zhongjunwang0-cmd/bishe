@@ -14,5 +14,7 @@ public class LearningRecord {
     private Long targetId;
     private Integer duration;
     private Integer score;
+
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }
